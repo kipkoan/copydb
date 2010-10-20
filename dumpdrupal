@@ -1,0 +1,26 @@
+#!/bin/bash
+
+if [ "$#" -ne 1 ]; then
+  echo "usage: $0 <database>" >&2
+  exit 1
+fi
+
+mysqldump -u root -p $1 --no-data
+
+echo -e "\n\n--"
+echo -e "-- Dumping Data"
+echo -e "--\n\n"
+
+mysqldump -u root -p $1 --no-create-info \
+  --ignore-table=$1.cache \
+  --ignore-table=$1.cache_block \
+  --ignore-table=$1.cache_content \
+  --ignore-table=$1.cache_filter \
+  --ignore-table=$1.cache_form \
+  --ignore-table=$1.cache_menu \
+  --ignore-table=$1.cache_page \
+  --ignore-table=$1.cache_update \
+  --ignore-table=$1.cache_views \
+  --ignore-table=$1.history \
+  --ignore-table=$1.session \
+  --ignore-table=$1.users

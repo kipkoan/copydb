@@ -1,0 +1,8 @@
+echo -e 'mysql -u root -p www_test < mktestdrupal.sql'
+mysql -u root -p < mktestdrupal.sql
+
+echo -e '\nmysqldump -u root -p www_prod > output.www_prod.sql'
+mysqldump -u root -p www_prod > output.www_prod.sql
+
+echo -e '\nmysql -u root -p www_test < output.www_prod.sql'
+mysql -u root -p www_test < output.www_prod.sql
