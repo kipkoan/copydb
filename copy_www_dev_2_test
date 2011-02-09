@@ -1,3 +1,6 @@
+read -s -p "Password: " mypassword
+echo -e "\n"
+
 echo -e 'mysql -u root -p www_test < mktestdrupal.sql'
 mysql -u root -p < mktestdrupal.sql
 
@@ -6,3 +9,5 @@ mysqldump -u root -p www_dev > output.www_dev.sql
 
 echo -e '\nmysql -u root -p www_test < output.www_dev.sql'
 mysql -u root -p www_test < output.www_dev.sql
+
+echo -e "\n"
