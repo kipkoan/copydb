@@ -2,12 +2,12 @@ read -s -p "Password: " mypassword
 echo -e "\n"
 
 echo -e 'mysql -u root -p www_dev < mkdevdrupal.sql'
-mysql -u root -p < mkdevdrupal.sql
+mysql -u root -p$mypassword < mkdevdrupal.sql
 
 echo -e '\nmysqldump -u root -p www_test > output.www_test.sql'
-mysqldump -u root -p www_test > output.www_test.sql
+mysqldump -u root -p$mypassword www_test > output.www_test.sql
 
 echo -e '\nmysql -u root -p www_dev < output.www_test.sql'
-mysql -u root -p www_dev < output.www_test.sql
+mysql -u root -p$mypassword www_dev < output.www_test.sql
 
 echo -e "\n"
