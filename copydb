@@ -14,8 +14,10 @@ destination_db_output="output.$destination_db.$date.sql"
 if [[ $destination_db =~ '_prod' ]]; then
   echo -e "\n*******************************************************************************"
   echo -e "*                            !!!!!  WARNING !!!!!                             *"
+  echo -e "*                                                                             *"
   echo -e "* This script will overwrite a PRODUCTION database ($destination_db)"
   echo -e "* with the contents of another database ($source_db)."
+  echo -e "*                                                                             *"
   echo -e "* Are you sure you want to do this?  If so, confirm by entering \"CONFIRM\" in  *"
   echo -e "* all caps (without the quotes) at the prompt below.                          *"
   echo -e "*******************************************************************************"
@@ -29,7 +31,7 @@ if [[ $destination_db =~ '_prod' ]]; then
 fi
 
 read -s -p "DB Password: " db_password
-echo -e "\n"
+echo -e ""
 
 echo -e "\n\n## Backing up destination database: $destination_db"
 echo -e "> mysqldump -u root -p<password> $destination_db > $destination_db_output"
