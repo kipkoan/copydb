@@ -1,15 +1,77 @@
 #!/bin/bash
 
-if [ "$#" -ne 2 ]; then
-  echo "usage: $0 <source_database> <destination_database>" >&2
-  exit 1
-fi
+E_OPTERROR=1
 
-source_db=$1
-destination_db=$2
-date=$(date +%F.%T)
-source_db_output="output.$source_db.$date.sql"
-destination_db_output="output.$destination_db.$date.sql"
+COMMAND=`basename $0`
+
+usage()
+{
+cat << EOF
+usage: $COMMAND [OPTION]... SOURCE_DATABASE [DESTINATION_DATABASE]
+
+DESCRIPTION:
+   Backup of MySQL database from SOURCE_DATABASE and optionally copy to DESTINATION_DATABASE
+
+OPTIONS:
+   -h                show this Help message
+   -c <COMMENT>      Comment to add to filename (default: <none>)
+   -u <USERNAME>     database Username (default: root)
+   -p <PASSWORD>     database Password (default: <prompt>)
+EOF
+}
+
+while getopts ":hc:u:p:" opt; do
+  case $opt in
+    h)
+      usage
+      exit
+      ;;
+    c)
+      comment=$OPTARG
+      ;;
+    u)
+      username=$OPTARG
+      ;;
+    p)
+      password=$OPTARG
+      ;;
+    \?)
+      echo "$COMMAND: Invalid option: -$OPTARG"
+      usage
+      exit $E_OPTERROR
+      ;;
+    :)
+      echo "$COMMAND: Option -$OPTARG requires an argument."
+      usage
+      exit $E_OPTERROR
+      ;;
+  esac
+done
+
+# move operand pointer past any options
+shift $(($OPTIND - 1))
+
+# check for the right # of arguments
+case $# in
+  0)
+    echo "$COMMAND: missing SOURCE_DATABASE operand"
+    usage
+    exit $E_OPTERROR
+    ;;
+  1)
+    source_db=$1
+    destination_db=
+    ;;
+  2)
+    source_db=$1
+    destination_db=$2
+    ;;
+  *)
+    echo "$COMMAND: too many operands"
+    usage
+    exit $E_OPTERROR
+    ;;
+esac
 
 if [[ $destination_db =~ '_prod' ]]; then
   echo -e "\n*******************************************************************************"
@@ -30,23 +92,63 @@ if [[ $destination_db =~ '_prod' ]]; then
   fi
 fi
 
-read -s -p "DB Password: " db_password
-echo -e ""
+# if comment is set & not empty, create the comment output
+if [ -n "$comment" ]; then
+  comment_out="\"\"$comment\"\"."
+fi
 
-echo -e "\n\n## Backing up destination database: $destination_db"
-echo -e "> mysqldump -u root -p<password> $destination_db > $destination_db_output"
-mysqldump -u root -p$db_password $destination_db > $destination_db_output
+# set DB username to "root" if not set with -u option
+if [ -n "$username" ]; then
+  db_username=$username
+else
+  db_username="root"
+fi
 
-echo -e "\n\n## Creating empty destination database: $destination_db"
-echo -e "> mysql -u root -p<password> -e \"DROP DATABASE IF EXISTS \\\`$destination_db\\\`; CREATE DATABASE \\\`$destination_db\\\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;\""
-mysql -u root -p$db_password -e "DROP DATABASE IF EXISTS \`$destination_db\`; CREATE DATABASE \`$destination_db\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;"
+# get & set DB password if not set with -p option
+if [ -n "$password" ]; then
+  db_password=$password
+else
+  read -s -p "DB Password: " db_password
+  echo -e ""
+fi
 
+# if db_password is set & not empty, create the password output (use "-p")
+# include space in front, so it will be separated from the username output
+if [ -n "$db_password" ]; then
+  db_password_out=" -p$db_password"
+  db_password_out_hidden=" -p<password>"
+else
+  db_password_out=
+  db_password_out_hidden=
+fi
+
+# get & set the date
+date=$(date +%F.%T)
+
+# set source & destination output filenames
+source_db_output="output.source:$source_db.$comment_out$date.sql"
+destination_db_output="output.destination:$destination_db.$comment_out$date.sql"
+
+# create backup of source_database
 echo -e "\n\n## Creating dump of source database: $source_db"
-echo -e "> mysqldump -u root -p<password> $source_db > $source_db_output"
-mysqldump -u root -p$db_password $source_db > $source_db_output
+echo -e "> mysqldump -u $db_username$db_password_out_hidden $source_db > $source_db_output"
+mysqldump -u $db_username$db_password_out $source_db > $source_db_output
 
-echo -e "\n\n## Copying source database dump to destination database: $destination_db"
-echo -e "> mysql -u root -p<password> $destination_db < $source_db_output"
-mysql -u root -p$db_password $destination_db < $source_db_output
+# if destination_database is set & not empty, back it up, wipe it out, then
+# copy the # source_database to it
+if [ -n "${destination_db-x}" ]; then
+  echo -e "\n\n## Backing up destination database: $destination_db"
+  echo -e "> mysqldump -u $db_username$db_password_out_hidden $destination_db > $destination_db_output"
+  mysqldump -u $db_username$db_password_out $destination_db > $destination_db_output
 
+  echo -e "\n\n## Creating empty destination database: $destination_db"
+  echo -e "> mysql -u $db_username$db_password_out_hidden -e \"DROP DATABASE IF EXISTS \\\`$destination_db\\\`; CREATE DATABASE \\\`$destination_db\\\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;\""
+  mysql -u $db_username$db_password_out -e "DROP DATABASE IF EXISTS \`$destination_db\`; CREATE DATABASE \`$destination_db\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;"
+
+  echo -e "\n\n## Copying source database dump to destination database: $destination_db"
+  echo -e "> mysql -u $db_username$db_password_out_hidden $destination_db < $source_db_output"
+  mysql -u $db_username$db_password_out $destination_db < $source_db_output
+fi
+
+# output line break for aesthatic purposes
 echo -e "\n"
