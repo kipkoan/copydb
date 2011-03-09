@@ -94,7 +94,7 @@ fi
 
 # if comment is set & not empty, create the comment output
 if [ -n "$comment" ]; then
-  comment_out="\"\"$comment\"\"."
+  comment_out="\"$comment\"."
 fi
 
 # set DB username to "root" if not set with -u option
@@ -131,23 +131,23 @@ destination_db_output="output.destination:$destination_db.$comment_out$date.sql"
 
 # create backup of source_database
 echo -e "\n\n## Creating dump of source database: $source_db"
-echo -e "> mysqldump -u $db_username$db_password_out_hidden $source_db > $source_db_output"
-mysqldump -u $db_username$db_password_out $source_db > $source_db_output
+echo -e "> mysqldump -u $db_username$db_password_out_hidden $source_db > \"$source_db_output\""
+mysqldump -u $db_username$db_password_out $source_db > "$source_db_output"
 
 # if destination_database is set & not empty, back it up, wipe it out, then
 # copy the # source_database to it
 if [ -n "${destination_db-x}" ]; then
   echo -e "\n\n## Backing up destination database: $destination_db"
-  echo -e "> mysqldump -u $db_username$db_password_out_hidden $destination_db > $destination_db_output"
-  mysqldump -u $db_username$db_password_out $destination_db > $destination_db_output
+  echo -e "> mysqldump -u $db_username$db_password_out_hidden $destination_db > \"$destination_db_output\""
+  mysqldump -u $db_username$db_password_out $destination_db > "$destination_db_output"
 
   echo -e "\n\n## Creating empty destination database: $destination_db"
   echo -e "> mysql -u $db_username$db_password_out_hidden -e \"DROP DATABASE IF EXISTS \\\`$destination_db\\\`; CREATE DATABASE \\\`$destination_db\\\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;\""
   mysql -u $db_username$db_password_out -e "DROP DATABASE IF EXISTS \`$destination_db\`; CREATE DATABASE \`$destination_db\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;"
 
   echo -e "\n\n## Copying source database dump to destination database: $destination_db"
-  echo -e "> mysql -u $db_username$db_password_out_hidden $destination_db < $source_db_output"
-  mysql -u $db_username$db_password_out $destination_db < $source_db_output
+  echo -e "> mysql -u $db_username$db_password_out_hidden $destination_db < \"$source_db_output\""
+  mysql -u $db_username$db_password_out $destination_db < "$source_db_output"
 fi
 
 # output line break for aesthatic purposes
