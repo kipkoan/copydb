@@ -94,7 +94,7 @@ fi
 
 # if comment is set & not empty, create the comment output
 if [ -n "$comment" ]; then
-  comment_out="\"$comment\"."
+  comment_out=".\"$comment\""
 fi
 
 # set DB username to "root" if not set with -u option
@@ -126,8 +126,8 @@ fi
 date=$(date +%F.%T)
 
 # set source & destination output filenames
-source_db_output="output.source:$source_db.$comment_out$date.sql"
-destination_db_output="output.destination:$destination_db.$comment_out$date.sql"
+source_db_output="output.source:$source_db.$date$comment_out.sql"
+destination_db_output="output.destination:$destination_db.$date$comment_out.sql"
 
 # create backup of source_database
 echo -e "\n\n## Creating dump of source database: $source_db"
