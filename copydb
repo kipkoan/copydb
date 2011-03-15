@@ -1,154 +1,345 @@
 #!/bin/bash
 
 E_OPTERROR=1
-
 COMMAND=`basename $0`
 
-usage()
+
+##############################################################################
+main()
+##############################################################################
+{
+  get_options "$@"
+
+  # move operand pointer past any options & reset OPTIND
+  shift $(($OPTIND - 1))
+  OPTIND=1
+
+  if [ -n "$source_file" ]; then   # SOURCE_FILE mode:
+    get_operands_source_file "$@"
+    set_common_variables
+
+    if [ -n "$destination_db" ]; then   # copy source to destination
+      prod_db_overwrite_test "a file ('$source_file')"
+      backup_destination_db
+      create_destination_db
+      copy_source_to_destination_db "$source_file"
+    fi
+
+  else   # SOURCE_DATABASE mode:
+    get_operands_source_database "$@"
+    set_common_variables
+
+    if [ -n "$destination_db" ]; then   # copy source to destination
+      prod_db_overwrite_test "a database (\`$source_db\`)"
+      backup_source_db   # sets $source_db_output
+      backup_destination_db
+      create_destination_db
+      copy_source_to_destination_db "$source_db_output"
+    else   # backup source database
+      backup_source_db
+    fi
+  fi
+
+  # output line break for aesthatic purposes
+  echo -e "\n"
+}
+
+
+##############################################################################
+help_prompt()
+##############################################################################
 {
 cat << EOF
-usage: $COMMAND [OPTION]... SOURCE_DATABASE [DESTINATION_DATABASE]
-
-DESCRIPTION:
-   Backup of MySQL database from SOURCE_DATABASE and optionally copy to DESTINATION_DATABASE
-
-OPTIONS:
-   -h                show this Help message
-   -c <COMMENT>      Comment to add to filename (default: <none>)
-   -u <USERNAME>     database Username (default: root)
-   -p <PASSWORD>     database Password (default: <prompt>)
+Try \`$COMMAND -h' for more information
 EOF
 }
 
-while getopts ":hc:u:p:" opt; do
-  case $opt in
-    h)
-      usage
-      exit
-      ;;
-    c)
-      comment=$OPTARG
-      ;;
-    u)
-      username=$OPTARG
-      ;;
-    p)
-      password=$OPTARG
-      ;;
-    \?)
-      echo "$COMMAND: Invalid option: -$OPTARG"
-      usage
+
+##############################################################################
+usage()
+##############################################################################
+{
+cat << EOF
+usage: $COMMAND [OPTION]... SOURCE_DATABASE [DESTINATION_DATABASE]
+       $COMMAND [OPTION]... -s SOURCE_FILE DESTINATION_DATABASE
+
+DESCRIPTION:
+   $COMMAND
+      Backup of MySQL database from SOURCE_DATABASE and optionally copy to DESTINATION_DATABASE
+
+   $COMMAND -s
+      Copy SOURCE_FILE to DESTINATION_DATABASE
+
+OPTIONS:
+   -h                show this Help message
+   -s <SOURCE_FILE>  copy from Source file to DESTINATION_DATABASE
+   -c <COMMENT>      Comment to add to filename (default: <none>)
+   -u <USERNAME>     database Username (default: root)
+   -p <PASSWORD>     database Password (default: <prompt>)
+   -p ''             database Password is not set (or null)
+EOF
+}
+
+
+##############################################################################
+get_options()
+##############################################################################
+{
+  while getopts ":hs:c:u:p:" opt; do
+    case $opt in
+      h)
+        usage
+        exit
+        ;;
+      s)
+        source_file=$OPTARG
+        ;;
+      c)
+        comment=$OPTARG
+        ;;
+      u)
+        username=$OPTARG
+        ;;
+      p)
+        password=$OPTARG
+        ;;
+      \?)
+        echo "$COMMAND: Invalid option: -$OPTARG"
+        help_prompt
+        exit $E_OPTERROR
+        ;;
+      :)
+        echo "$COMMAND: Option -$OPTARG requires an argument."
+        help_prompt
+        exit $E_OPTERROR
+        ;;
+    esac
+  done
+}
+
+
+##############################################################################
+get_operands_source_file()
+##############################################################################
+{
+  # check for the right # of arguments
+  case $# in
+    0)
+      echo "$COMMAND: missing DESTINATION_DATABASE operand"
+      help_prompt
       exit $E_OPTERROR
       ;;
-    :)
-      echo "$COMMAND: Option -$OPTARG requires an argument."
-      usage
+    1)
+      destination_db=$1
+      ;;
+    *)
+      echo "$COMMAND: too many operands"
+      help_prompt
       exit $E_OPTERROR
       ;;
   esac
-done
+}
 
-# move operand pointer past any options
-shift $(($OPTIND - 1))
 
-# check for the right # of arguments
-case $# in
-  0)
-    echo "$COMMAND: missing SOURCE_DATABASE operand"
-    usage
-    exit $E_OPTERROR
-    ;;
-  1)
-    source_db=$1
-    destination_db=
-    ;;
-  2)
-    source_db=$1
-    destination_db=$2
-    ;;
-  *)
-    echo "$COMMAND: too many operands"
-    usage
-    exit $E_OPTERROR
-    ;;
-esac
+##############################################################################
+get_operands_source_database()
+##############################################################################
+{
+  # check for the right # of arguments
+  case $# in
+    0)
+      echo "$COMMAND: missing SOURCE_DATABASE operand"
+      help_prompt
+      exit $E_OPTERROR
+      ;;
+    1)
+      source_db=$1
+      destination_db=
+      ;;
+    2)
+      source_db=$1
+      destination_db=$2
+      ;;
+    *)
+      echo "$COMMAND: too many operands"
+      help_prompt
+      exit $E_OPTERROR
+      ;;
+  esac
+}
 
-if [[ $destination_db =~ '_prod' ]]; then
-  echo -e "\n*******************************************************************************"
-  echo -e "*                            !!!!!  WARNING !!!!!                             *"
-  echo -e "*                                                                             *"
-  echo -e "* This script will overwrite a PRODUCTION database ($destination_db)"
-  echo -e "* with the contents of another database ($source_db)."
-  echo -e "*                                                                             *"
-  echo -e "* Are you sure you want to do this?  If so, confirm by entering \"CONFIRM\" in  *"
-  echo -e "* all caps (without the quotes) at the prompt below.                          *"
-  echo -e "*******************************************************************************"
-  echo -e "\n"
-  read -p "Are you sure? " confirm
 
-  if [ $confirm != "CONFIRM" ]; then
-    echo -e "## Exiting program without making any changes\n"
-    exit
+##############################################################################
+prod_db_overwrite_test()
+##############################################################################
+{
+  source_comment=$1
+
+  if [[ $destination_db =~ '_prod' ]]; then
+    echo -e "\n*******************************************************************************"
+    echo -e "*                            !!!!!  WARNING !!!!!                             *"
+    echo -e "*                                                                             *"
+    echo -e "* This script will overwrite a PRODUCTION database ($destination_db)"
+    echo -e "* with the contents of $source_comment."
+    echo -e "*                                                                             *"
+    echo -e "* Are you sure you want to do this?  If so, confirm by entering \"CONFIRM\" in  *"
+    echo -e "* all caps (without the quotes) at the prompt below.                          *"
+    echo -e "*******************************************************************************"
+    echo -e "\n"
+    read -p "Are you sure? " confirm
+
+    if [ $confirm != "CONFIRM" ]; then
+      echo -e "## Exiting program without making any changes\n"
+      exit
+    fi
   fi
-fi
+}
 
-# if comment is set & not empty, create the comment output
-if [ -n "$comment" ]; then
-  comment_out=".\"$comment\""
-fi
 
-# set DB username to "root" if not set with -u option
-if [ -n "$username" ]; then
-  db_username=$username
-else
-  db_username="root"
-fi
+##############################################################################
+set_common_variables()
+##############################################################################
+{
+  set_comment_out
+  set_db_username
+  set_db_password
+  set_db_password_out
+  set_date
+}
 
-# get & set DB password if not set with -p option
-if [ -n "$password" ]; then
-  db_password=$password
-else
-  read -s -p "DB Password for user \"$db_username\": " db_password
-  echo -e ""
-fi
 
-# if db_password is set & not empty, create the password output (use "-p")
-# include space in front, so it will be separated from the username output
-if [ -n "$db_password" ]; then
-  db_password_out=" -p$db_password"
-  db_password_out_hidden=" -p<password>"
-else
-  db_password_out=
-  db_password_out_hidden=
-fi
+##############################################################################
+set_comment_out()
+##############################################################################
+{
+  # if comment is set & not empty, create the comment output
+  if [ -n "$comment" ]; then
+    comment_out=".\"$comment\""
+  fi
+}
 
-# get & set the date
-date=$(date +%F.%T)
 
-# set source & destination output filenames
-source_db_output="output.source:$source_db.$date$comment_out.sql"
-destination_db_output="output.destination:$destination_db.$date$comment_out.sql"
+##############################################################################
+set_db_username()
+##############################################################################
+{
+  # set DB username to "root" if not set with -u option
+  if [ -n "$username" ]; then
+    db_username=$username
+  else
+    db_username="root"
+  fi
+}
 
-# create backup of source_database
-echo -e "\n\n## Creating dump of source database: $source_db"
-echo -e "> mysqldump -u $db_username$db_password_out_hidden $source_db > \"$source_db_output\""
-mysqldump -u $db_username$db_password_out $source_db > "$source_db_output"
 
-# if destination_database is set & not empty, back it up, wipe it out, then
-# copy the # source_database to it
-if [ -n "${destination_db-x}" ]; then
-  echo -e "\n\n## Backing up destination database: $destination_db"
-  echo -e "> mysqldump -u $db_username$db_password_out_hidden $destination_db > \"$destination_db_output\""
-  mysqldump -u $db_username$db_password_out $destination_db > "$destination_db_output"
+##############################################################################
+set_db_password()
+##############################################################################
+{
+  # get & set DB password if not set with -p option
+  if [ -n "$password" ]; then
+    db_password=$password
+  elif [ -n "${password+isSet}" ]; then
+    db_password=
+  else
+    read -s -p "DB Password for user '$db_username': " db_password
+    echo -e ""
+  fi
+}
 
-  echo -e "\n\n## Creating empty destination database: $destination_db"
-  echo -e "> mysql -u $db_username$db_password_out_hidden -e \"DROP DATABASE IF EXISTS \\\`$destination_db\\\`; CREATE DATABASE \\\`$destination_db\\\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;\""
-  mysql -u $db_username$db_password_out -e "DROP DATABASE IF EXISTS \`$destination_db\`; CREATE DATABASE \`$destination_db\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;"
 
-  echo -e "\n\n## Copying source database dump to destination database: $destination_db"
-  echo -e "> mysql -u $db_username$db_password_out_hidden $destination_db < \"$source_db_output\""
-  mysql -u $db_username$db_password_out $destination_db < "$source_db_output"
-fi
+##############################################################################
+set_db_password_out()
+##############################################################################
+{
+  # if db_password is set & not empty, create the password output (use "-p")
+  # include space in front, so it will be separated from the username output
+  if [ -n "$db_password" ]; then
+    db_password_out=" -p'$db_password'"
+    db_password_out_hidden=" -p'<password>'"
+  else
+    db_password_out=
+    db_password_out_hidden=
+  fi
+}
 
-# output line break for aesthatic purposes
-echo -e "\n"
+
+##############################################################################
+set_date()
+##############################################################################
+{
+  # get & set the date
+  date=$(date +%F.%T)
+}
+
+
+##############################################################################
+output_and_run_command()
+##############################################################################
+{
+  command=$1
+
+  command_out=${command/'<password>'/$db_password_out_hidden}
+  command_run=${command/'<password>'/$db_password_out}
+
+  echo "> $command_out"
+  eval "$command_run"
+}
+
+
+##############################################################################
+backup_source_db()
+##############################################################################
+{
+  # set source output filename
+  source_db_output="output.source:\"$source_db\".$date$comment_out.sql"
+
+  command="mysqldump -u '$db_username'<password> '$source_db' > '$source_db_output'"
+
+  echo -e "\n\n## Creating dump of source database: \"$source_db\""
+  output_and_run_command "$command"
+}
+
+
+##############################################################################
+backup_destination_db()
+##############################################################################
+{
+  # set destination output filename
+  destination_db_output="output.destination:\"$destination_db\".$date$comment_out.sql"
+
+  command="mysqldump -u '$db_username'<password> '$destination_db' > '$destination_db_output'"
+
+  echo -e "\n\n## Backing up destination database: \"$destination_db\""
+  output_and_run_command "$command"
+}
+
+
+##############################################################################
+create_destination_db()
+##############################################################################
+{
+  command="mysql -u '$db_username'<password> -e \"DROP DATABASE IF EXISTS \\\`$destination_db\\\`; CREATE DATABASE \\\`$destination_db\\\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;\""
+
+  echo -e "\n\n## Creating empty destination database: \"$destination_db\""
+  output_and_run_command "$command"
+}
+
+
+##############################################################################
+copy_source_to_destination_db()
+##############################################################################
+{
+  source_db_file=$1
+
+  command="mysql -u '$db_username'<password> '$destination_db' < '$source_db_file'"
+
+  echo -e "\n\n## Copying source database dump to destination database: \"$destination_db\""
+  output_and_run_command "$command"
+}
+
+
+##############################################################################
+# call main function
+##############################################################################
+main "$@"
