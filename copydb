@@ -1,6 +1,7 @@
 #!/bin/bash
 
-E_OPTERROR=1
+E_OPTION_ERROR=1
+E_INPUT_TYPE_ERROR=1
 COMMAND=`basename $0`
 
 
@@ -77,6 +78,9 @@ OPTIONS:
    -u <USERNAME>     database Username (default: root)
    -p <PASSWORD>     database Password (default: <prompt>)
    -p ''             database Password is not set (or null)
+   -b                use Bzip2 to compress output
+   -g                use Gzip to compress output
+   -n                dry run - do Not actually do anything, just show what would be done
 EOF
 }
 
@@ -85,7 +89,7 @@ EOF
 get_options()
 ##############################################################################
 {
-  while getopts ":hs:c:u:p:" opt; do
+  while getopts ":hs:c:u:p:bgn" opt; do
     case $opt in
       h)
         usage
@@ -103,15 +107,24 @@ get_options()
       p)
         password=$OPTARG
         ;;
+      b)
+        bzip2=TRUE
+        ;;
+      g)
+        gzip=TRUE
+        ;;
+      n)
+        dry_run=TRUE
+        ;;
       \?)
         echo "$COMMAND: Invalid option: -$OPTARG"
         help_prompt
-        exit $E_OPTERROR
+        exit $E_OPTION_ERROR
         ;;
       :)
         echo "$COMMAND: Option -$OPTARG requires an argument."
         help_prompt
-        exit $E_OPTERROR
+        exit $E_OPTION_ERROR
         ;;
     esac
   done
@@ -127,7 +140,7 @@ get_operands_source_file()
     0)
       echo "$COMMAND: missing DESTINATION_DATABASE operand"
       help_prompt
-      exit $E_OPTERROR
+      exit $E_OPTION_ERROR
       ;;
     1)
       destination_db=$1
@@ -135,7 +148,7 @@ get_operands_source_file()
     *)
       echo "$COMMAND: too many operands"
       help_prompt
-      exit $E_OPTERROR
+      exit $E_OPTION_ERROR
       ;;
   esac
 }
@@ -150,7 +163,7 @@ get_operands_source_database()
     0)
       echo "$COMMAND: missing SOURCE_DATABASE operand"
       help_prompt
-      exit $E_OPTERROR
+      exit $E_OPTION_ERROR
       ;;
     1)
       source_db=$1
@@ -163,7 +176,7 @@ get_operands_source_database()
     *)
       echo "$COMMAND: too many operands"
       help_prompt
-      exit $E_OPTERROR
+      exit $E_OPTION_ERROR
       ;;
   esac
 }
@@ -283,7 +296,60 @@ output_and_run_command()
   command_run=${command/'<password>'/$db_password_out}
 
   echo "> $command_out"
-  eval "$command_run"
+
+  if [ -n "$dry_run" ]; then
+    echo "DRY RUN -- no command run"
+  else
+    eval "$command_run"
+  fi
+}
+
+
+##############################################################################
+redirect_to_output()
+##############################################################################
+{
+  output_file=$1
+
+  if [ -n $bzip2 ]; then
+    redirection_output="| bzip2 -c > $output_file.bz2"
+  elif [ -n $gzip ]; then
+    redirection_output="| gzip -c > $output_file.gz"
+  else
+    redirection_output="> $output_file"
+  fi
+
+  echo $redirection_output
+}
+
+
+##############################################################################
+redirect_from_input()
+##############################################################################
+{
+  input_file=$1
+  mime_type=$(file -ib $1)
+
+  case $mime_type in
+    *text/plain*)
+      input_process=""
+      ;;
+    *bzip*)
+      input_process=" bzip2 -dc"
+      ;;
+    *gzip*)
+      input_process=" gzip -dc"
+      ;;
+    *)
+      echo -e "\n$COMMAND: input format not supported"
+      help_prompt
+      exit $E_INPUT_TYPE_ERROR
+      ;;
+  esac
+
+  redirection_input="<${input_process} $input_file"
+
+  echo $redirection_input
 }
 
 
@@ -294,7 +360,7 @@ backup_source_db()
   # set source output filename
   source_db_output="output.source:\"$source_db\".$date$comment_out.sql"
 
-  command="mysqldump -u '$db_username'<password> '$source_db' > '$source_db_output'"
+  command="mysqldump -u '$db_username'<password> '$source_db' $(redirect_to_output "$source_db_output")"
 
   echo -e "\n\n## Creating dump of source database: \"$source_db\""
   output_and_run_command "$command"
@@ -308,7 +374,7 @@ backup_destination_db()
   # set destination output filename
   destination_db_output="output.destination:\"$destination_db\".$date$comment_out.sql"
 
-  command="mysqldump -u '$db_username'<password> '$destination_db' > '$destination_db_output'"
+  command="mysqldump -u '$db_username'<password> '$destination_db' $(redirect_to_output "$destination_db_output")"
 
   echo -e "\n\n## Backing up destination database: \"$destination_db\""
   output_and_run_command "$command"
@@ -332,7 +398,7 @@ copy_source_to_destination_db()
 {
   source_db_file=$1
 
-  command="mysql -u '$db_username'<password> '$destination_db' < '$source_db_file'"
+  command="mysql -u '$db_username'<password> '$destination_db' $(redirect_from_input "$source_db_file")"
 
   echo -e "\n\n## Copying source database dump to destination database: \"$destination_db\""
   output_and_run_command "$command"
