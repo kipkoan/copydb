@@ -292,10 +292,12 @@ output_and_run_command()
 {
   command=$1
 
-  command_out=${command/'<password>'/$db_password_out_hidden}
+  command_out=${command//'<password>'/$db_password_out_hidden}
   command_run=${command/'<password>'/$db_password_out}
+  command_run=${command_run//\"/\\\"}    # escape double quotes
 
   echo "> $command_out"
+  echo ">> $command_run"
 
   if [ -n "$dry_run" ]; then
     echo "DRY RUN -- no command run"
@@ -311,9 +313,9 @@ redirect_to_output()
 {
   output_file=$1
 
-  if [ -n $bzip2 ]; then
+  if [ -n "$bzip2" ]; then
     redirection_output="| bzip2 -c > $output_file.bz2"
-  elif [ -n $gzip ]; then
+  elif [ -n "$gzip" ]; then
     redirection_output="| gzip -c > $output_file.gz"
   else
     redirection_output="> $output_file"
@@ -328,17 +330,17 @@ redirect_from_input()
 ##############################################################################
 {
   input_file=$1
-  mime_type=$(file -ib $1)
+  mime_type=$(file -ib "$1")
 
   case $mime_type in
     *text/plain*)
-      input_process=""
+      input_process="cat"
       ;;
     *bzip*)
-      input_process=" bzip2 -dc"
+      input_process="bzip2 -dc"
       ;;
     *gzip*)
-      input_process=" gzip -dc"
+      input_process="gzip -dc"
       ;;
     *)
       echo -e "\n$COMMAND: input format not supported"
@@ -347,7 +349,7 @@ redirect_from_input()
       ;;
   esac
 
-  redirection_input="<${input_process} $input_file"
+  redirection_input="${input_process} $input_file"
 
   echo $redirection_input
 }
@@ -385,7 +387,7 @@ backup_destination_db()
 create_destination_db()
 ##############################################################################
 {
-  command="mysql -u '$db_username'<password> -e \"DROP DATABASE IF EXISTS \\\`$destination_db\\\`; CREATE DATABASE \\\`$destination_db\\\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;\""
+  command="mysql -u '$db_username'<password> -e 'DROP DATABASE IF EXISTS \`$destination_db\`; CREATE DATABASE \`$destination_db\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;'"
 
   echo -e "\n\n## Creating empty destination database: \"$destination_db\""
   output_and_run_command "$command"
@@ -398,7 +400,7 @@ copy_source_to_destination_db()
 {
   source_db_file=$1
 
-  command="mysql -u '$db_username'<password> '$destination_db' $(redirect_from_input "$source_db_file")"
+  command="$(redirect_from_input "$source_db_file") | mysql -u '$db_username'<password> '$destination_db'"
 
   echo -e "\n\n## Copying source database dump to destination database: \"$destination_db\""
   output_and_run_command "$command"
