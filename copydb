@@ -294,10 +294,8 @@ output_and_run_command()
 
   command_out=${command//'<password>'/$db_password_out_hidden}
   command_run=${command/'<password>'/$db_password_out}
-  command_run=${command_run//\"/\\\"}    # escape double quotes
 
   echo "> $command_out"
-  echo ">> $command_run"
 
   if [ -n "$dry_run" ]; then
     echo "DRY RUN -- no command run"
@@ -314,11 +312,11 @@ redirect_to_output()
   output_file=$1
 
   if [ -n "$bzip2" ]; then
-    redirection_output="| bzip2 -c > $output_file.bz2"
+    redirection_output="| bzip2 -c > '$output_file.bz2'"
   elif [ -n "$gzip" ]; then
-    redirection_output="| gzip -c > $output_file.gz"
+    redirection_output="| gzip -c > '$output_file.gz'"
   else
-    redirection_output="> $output_file"
+    redirection_output="> '$output_file'"
   fi
 
   echo $redirection_output
@@ -349,7 +347,7 @@ redirect_from_input()
       ;;
   esac
 
-  redirection_input="${input_process} $input_file"
+  redirection_input="${input_process} '$input_file'"
 
   echo $redirection_input
 }
