@@ -306,18 +306,38 @@ output_and_run_command()
 
 
 ##############################################################################
+output_filename()
+##############################################################################
+{
+  backup_type=$1
+  database=$2
+
+  output_filename="output.$backup_type:\"$database\".$date$comment_out.sql"
+
+  if [ -n "$bzip2" ]; then
+    output_filename="$output_filename.bz2"
+  elif [ -n "$gzip" ]; then
+    output_filename="$output_filename.gz"
+  fi
+
+  echo $output_filename
+}
+
+
+##############################################################################
 redirect_to_output()
 ##############################################################################
 {
   output_file=$1
+  redirection=""
 
   if [ -n "$bzip2" ]; then
-    redirection_output="| bzip2 -c > '$output_file.bz2'"
+    redirection="| bzip2 -c "
   elif [ -n "$gzip" ]; then
-    redirection_output="| gzip -c > '$output_file.gz'"
-  else
-    redirection_output="> '$output_file'"
+    redirection="| gzip -c "
   fi
+
+  redirection_output="$redirection> '$output_file'"
 
   echo $redirection_output
 }
@@ -358,7 +378,7 @@ backup_source_db()
 ##############################################################################
 {
   # set source output filename
-  source_db_output="output.source:\"$source_db\".$date$comment_out.sql"
+  source_db_output=$(output_filename 'source' "$source_db")
 
   command="mysqldump -u '$db_username'<password> '$source_db' $(redirect_to_output "$source_db_output")"
 
@@ -372,7 +392,7 @@ backup_destination_db()
 ##############################################################################
 {
   # set destination output filename
-  destination_db_output="output.destination:\"$destination_db\".$date$comment_out.sql"
+  destination_db_output=$(output_filename 'destination' "$destination_db")
 
   command="mysqldump -u '$db_username'<password> '$destination_db' $(redirect_to_output "$destination_db_output")"
 
