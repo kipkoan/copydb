@@ -54,9 +54,7 @@ main()
 help_prompt()
 ##############################################################################
 {
-cat << EOF
-Try \`$COMMAND -h' for more information
-EOF
+echo "Try \`$COMMAND -h' for more information"
 }
 
 
@@ -332,17 +330,24 @@ run_command()
 
 
 ##############################################################################
+output_fail_and_exit()
+##############################################################################
+{
+  printf "${TXTRED}***** COMMAND FAILED *****${TXTNORMAL}\n\n"
+  exit
+}
+
+
+##############################################################################
 run_command_or_fail()
 ##############################################################################
 {
   command=$1
 
-  run_command "$1"
+  trap 'output_fail_and_exit' ERR
+  set -o pipefail
 
-  if [ "$?" -ne "0" ]; then
-    printf "${TXTRED}***** COMMAND FAILED *****${TXTNORMAL}\n\n"
-    exit
-  fi
+  run_command "$1"
 }
 
 
@@ -379,14 +384,30 @@ output_filename()
 
   output_filename="output.$backup_type:\"$database\".$date$comment_out.sql"
 
-  if [ -n "$bzip2" ]; then
-    output_filename="$output_filename.bz2"
-  elif [ -n "$gzip" ]; then
-    output_filename="$output_filename.gz"
-  fi
-
   echo $output_filename
 }
+
+
+##############################################################################
+optionally_compress_file()
+##############################################################################
+{
+  filename=$1
+
+  if [ -n "$bzip2" ]; then
+    command="bzip2 $original_file"
+
+    echo -e "\n## Compressing file with bzip2: \"$filename\""
+    output_and_run_command_or_fail "$command"
+
+  elif [ -n "$gzip" ]; then
+    command="gzip $original_file"
+
+    echo -e "\n## Compressing file with gzip: \"$filename\""
+    output_and_run_command_or_fail "$command"
+  fi
+}
+
 
 
 ##############################################################################
@@ -445,10 +466,12 @@ backup_source_db()
   # set source output filename
   source_db_output=$(output_filename 'source' "$source_db")
 
-  command="mysqldump -u '$db_username'<password> '$source_db' $(redirect_to_output "$source_db_output")"
+  command="mysqldump -u '$db_username'<password> '$source_db' > $source_db_output"
 
   echo -e "\n\n## Creating dump of source database: \"$source_db\""
   output_and_run_command_or_fail "$command"
+
+  optionally_compress_file "$source_db_output"
 }
 
 
@@ -461,7 +484,7 @@ check_for_destination_db()
 
   echo -e "\n\n## Check if destination database exists: \"$destination_db\""
 
-  run_command "$command"
+  run_command_or_fail "$command"
 
   if [ "$?" -eq "0" ]; then
     printf "## Destination database exists"
@@ -483,10 +506,12 @@ backup_destination_db()
     # set destination output filename
     destination_db_output=$(output_filename 'destination' "$destination_db")
 
-    command="mysqldump -u '$db_username'<password> '$destination_db' $(redirect_to_output "$destination_db_output")"
+    command="mysqldump -u '$db_username'<password> '$destination_db' > $destination_db_output"
 
     printf "... Backing up: \"$destination_db\"\n"
     output_and_run_command_or_fail "$command"
+
+    optionally_compress_file "$destination_db_output"
 
   else
     printf "... Skipping backup\n"
@@ -510,6 +535,9 @@ copy_source_to_destination_db()
 ##############################################################################
 {
   source_db_file=$1
+
+  trap 'output_fail_and_exit' ERR
+  set -o pipefail
 
   command="$(redirect_from_input "$source_db_file") | mysql -u '$db_username'<password> '$destination_db'"
 
