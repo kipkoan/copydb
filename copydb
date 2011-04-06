@@ -4,6 +4,10 @@ E_OPTION_ERROR=1
 E_INPUT_TYPE_ERROR=1
 COMMAND=`basename $0`
 
+# Set constants for formatting output
+TXTNORMAL=$(tput sgr0)
+TXTRED=$(tput setaf 1)
+
 
 ##############################################################################
 main()
@@ -287,21 +291,82 @@ set_date()
 
 
 ##############################################################################
-output_and_run_command()
+output_command()
 ##############################################################################
 {
   command=$1
 
   command_out=${command//'<password>'/$db_password_out_hidden}
-  command_run=${command/'<password>'/$db_password_out}
 
   echo "> $command_out"
+}
+
+
+##############################################################################
+run_command()
+##############################################################################
+{
+  command=$1
+
+  command_run=${command/'<password>'/$db_password_out}
 
   if [ -n "$dry_run" ]; then
-    echo "DRY RUN -- no command run"
+    printf "  -- DRY RUN -- No Command Run\n"
   else
-    eval "$command_run"
+    eval "$command_run" &
+    pid=$!
+
+    printf " "
+    rotate='|/-\'
+
+    while kill -n 0 $pid 2>/dev/null; do
+      rotate="${rotate#?}${rotate%???}"
+      printf '%.1s\b' "$rotate"
+      sleep 0.125
+    done
+
+    printf " \n"
+    wait $pid
   fi
+}
+
+
+##############################################################################
+run_command_or_fail()
+##############################################################################
+{
+  command=$1
+
+  run_command "$1"
+
+  if [ "$?" -ne "0" ]; then
+    printf "${TXTRED}***** COMMAND FAILED *****${TXTNORMAL}\n\n"
+    exit
+  fi
+}
+
+
+##############################################################################
+output_and_run_command()
+##############################################################################
+{
+  command=$1
+
+  output_command "$1"
+
+  run_command "$1"
+}
+
+
+##############################################################################
+output_and_run_command_or_fail()
+##############################################################################
+{
+  command=$1
+
+  output_command "$1"
+
+  run_command_or_fail "$1"
 }
 
 
@@ -383,7 +448,28 @@ backup_source_db()
   command="mysqldump -u '$db_username'<password> '$source_db' $(redirect_to_output "$source_db_output")"
 
   echo -e "\n\n## Creating dump of source database: \"$source_db\""
-  output_and_run_command "$command"
+  output_and_run_command_or_fail "$command"
+}
+
+
+##############################################################################
+check_for_destination_db()
+##############################################################################
+{
+  # check if destination database exists
+  command="mysql --batch --skip-column-names -u '$db_username'$db_password_out -e 'SHOW DATABASES LIKE \"$destination_db\"' | grep -q '$destination_db'"
+
+  echo -e "\n\n## Check if destination database exists: \"$destination_db\""
+
+  run_command "$command"
+
+  if [ "$?" -eq "0" ]; then
+    printf "## Destination database exists"
+    return 0
+  else
+    printf "## Destination database does not exist"
+    return 1
+  fi
 }
 
 
@@ -391,13 +477,20 @@ backup_source_db()
 backup_destination_db()
 ##############################################################################
 {
-  # set destination output filename
-  destination_db_output=$(output_filename 'destination' "$destination_db")
+  check_for_destination_db
 
-  command="mysqldump -u '$db_username'<password> '$destination_db' $(redirect_to_output "$destination_db_output")"
+  if [ "$?" -eq "0" ]; then
+    # set destination output filename
+    destination_db_output=$(output_filename 'destination' "$destination_db")
 
-  echo -e "\n\n## Backing up destination database: \"$destination_db\""
-  output_and_run_command "$command"
+    command="mysqldump -u '$db_username'<password> '$destination_db' $(redirect_to_output "$destination_db_output")"
+
+    printf "... Backing up: \"$destination_db\"\n"
+    output_and_run_command_or_fail "$command"
+
+  else
+    printf "... Skipping backup\n"
+  fi
 }
 
 
@@ -408,7 +501,7 @@ create_destination_db()
   command="mysql -u '$db_username'<password> -e 'DROP DATABASE IF EXISTS \`$destination_db\`; CREATE DATABASE \`$destination_db\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;'"
 
   echo -e "\n\n## Creating empty destination database: \"$destination_db\""
-  output_and_run_command "$command"
+  output_and_run_command_or_fail "$command"
 }
 
 
@@ -421,7 +514,7 @@ copy_source_to_destination_db()
   command="$(redirect_from_input "$source_db_file") | mysql -u '$db_username'<password> '$destination_db'"
 
   echo -e "\n\n## Copying source database dump to destination database: \"$destination_db\""
-  output_and_run_command "$command"
+  output_and_run_command_or_fail "$command"
 }
 
 
