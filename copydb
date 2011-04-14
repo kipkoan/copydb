@@ -5,14 +5,23 @@ E_INPUT_TYPE_ERROR=1
 COMMAND=`basename $0`
 
 # Set constants for formatting output
-TXTNORMAL=$(tput sgr0)
-TXTRED=$(tput setaf 1)
+TXT_NORMAL=$(tput sgr0)
+TXT_ERROR=$(tput setab 1)
+TXT_EXIT=$(tput setaf 1)
+TXT_WARNING=$(tput setaf 2)
+TXT_PROMPT=$(tput setaf 3)
+TXT_NOTICE=$(tput setaf 2)
+TXT_COMMAND=$(tput setaf 4)
+TXT_SPINNER=$(tput setab 5; tput setaf 3)
 
 
 ##############################################################################
 main()
 ##############################################################################
 {
+  # notify when any command fails
+  add_on_err 'printf "\n${TXT_ERROR}***** COMMAND FAILED *****${TXT_NORMAL}\n\n"'
+
   get_options "$@"
 
   # move operand pointer past any options & reset OPTIND
@@ -46,7 +55,7 @@ main()
   fi
 
   # output line break for aesthatic purposes
-  echo -e "\n"
+  printf "\n"
 }
 
 
@@ -54,7 +63,7 @@ main()
 help_prompt()
 ##############################################################################
 {
-echo "Try \`$COMMAND -h' for more information"
+  printf "${TXT_NOTICE}Try \`$COMMAND -h' for more information${TXT_NORMAL}\n"
 }
 
 
@@ -119,12 +128,12 @@ get_options()
         dry_run=TRUE
         ;;
       \?)
-        echo "$COMMAND: Invalid option: -$OPTARG"
+        printf "${TXT_EXIT}$COMMAND: Invalid option: -$OPTARG${TXT_NORMAL}\n"
         help_prompt
         exit $E_OPTION_ERROR
         ;;
       :)
-        echo "$COMMAND: Option -$OPTARG requires an argument."
+        printf "${TXT_EXIT}$COMMAND: Option -$OPTARG requires an argument.${TXT_NORMAL}\n"
         help_prompt
         exit $E_OPTION_ERROR
         ;;
@@ -140,7 +149,7 @@ get_operands_source_file()
   # check for the right # of arguments
   case $# in
     0)
-      echo "$COMMAND: missing DESTINATION_DATABASE operand"
+      printf "${TXT_EXIT}$COMMAND: missing DESTINATION_DATABASE operand${TXT_NORMAL}\n"
       help_prompt
       exit $E_OPTION_ERROR
       ;;
@@ -148,7 +157,7 @@ get_operands_source_file()
       destination_db=$1
       ;;
     *)
-      echo "$COMMAND: too many operands"
+      printf "${TXT_EXIT}$COMMAND: too many operands${TXT_NORMAL}\n"
       help_prompt
       exit $E_OPTION_ERROR
       ;;
@@ -163,7 +172,7 @@ get_operands_source_database()
   # check for the right # of arguments
   case $# in
     0)
-      echo "$COMMAND: missing SOURCE_DATABASE operand"
+      printf "${TXT_EXIT}$COMMAND: missing SOURCE_DATABASE operand${TXT_NORMAL}\n"
       help_prompt
       exit $E_OPTION_ERROR
       ;;
@@ -176,7 +185,7 @@ get_operands_source_database()
       destination_db=$2
       ;;
     *)
-      echo "$COMMAND: too many operands"
+      printf "${TXT_EXIT}$COMMAND: too many operands${TXT_NORMAL}\n"
       help_prompt
       exit $E_OPTION_ERROR
       ;;
@@ -191,20 +200,20 @@ prod_db_overwrite_test()
   source_comment=$1
 
   if [[ $destination_db =~ '_prod' ]]; then
-    echo -e "\n*******************************************************************************"
-    echo -e "*                            !!!!!  WARNING !!!!!                             *"
-    echo -e "*                                                                             *"
-    echo -e "* This script will overwrite a PRODUCTION database ($destination_db)"
-    echo -e "* with the contents of $source_comment."
-    echo -e "*                                                                             *"
-    echo -e "* Are you sure you want to do this?  If so, confirm by entering \"CONFIRM\" in  *"
-    echo -e "* all caps (without the quotes) at the prompt below.                          *"
-    echo -e "*******************************************************************************"
-    echo -e "\n"
-    read -p "Are you sure? " confirm
+    printf "\n${TXT_WARNING}*******************************************************************************\n"
+    printf "*                            !!!!!  WARNING !!!!!                             *\n"
+    printf "*                                                                             *\n"
+    printf "* This script will overwrite a PRODUCTION database ($destination_db)\n"
+    printf "* with the contents of $source_comment.\n"
+    printf "*                                                                             *\n"
+    printf "* Are you sure you want to do this?  If so, confirm by entering \"CONFIRM\" in  *\n"
+    printf "* all caps (without the quotes) at the prompt below.                          *\n"
+    printf "*******************************************************************************${TXT_NORMAL}\n"
+    printf "\n"
+    read -p "${TXT_PROMPT}Are you sure? ${TXT_NORMAL}" confirm
 
     if [ $confirm != "CONFIRM" ]; then
-      echo -e "## Exiting program without making any changes\n"
+      printf "${TXT_EXIT}## Exiting program without making any changes${TXT_NORMAL}\n"
       exit
     fi
   fi
@@ -257,8 +266,8 @@ set_db_password()
   elif [ -n "${password+isSet}" ]; then
     db_password=
   else
-    read -s -p "DB Password for user '$db_username': " db_password
-    echo -e ""
+    read -s -p "${TXT_PROMPT}DB Password for user '$db_username': ${TXT_NORMAL}" db_password
+    printf "\n"
   fi
 }
 
@@ -289,6 +298,53 @@ set_date()
 
 
 ##############################################################################
+on_exit()
+##############################################################################
+{
+  for i in "${on_exit_items[@]}"; do
+    eval $i
+  done
+}
+
+
+##############################################################################
+add_on_exit()
+##############################################################################
+{
+  local n=${#on_exit_items[*]}
+  on_exit_items[$n]="$*"
+  if [[ $n -eq 0 ]]; then
+    trap on_exit EXIT
+  fi
+}
+
+
+##############################################################################
+on_err()
+##############################################################################
+{
+  for i in "${on_err_items[@]}"; do
+    eval $i
+  done
+
+  exit
+}
+
+
+##############################################################################
+add_on_err()
+##############################################################################
+{
+  local n=${#on_err_items[*]}
+  on_err_items[$n]="$*"
+  if [[ $n -eq 0 ]]; then
+    trap on_err 1 2 3 15 ERR
+    set -E -o pipefail
+  fi
+}
+
+
+##############################################################################
 output_command()
 ##############################################################################
 {
@@ -296,7 +352,7 @@ output_command()
 
   command_out=${command//'<password>'/$db_password_out_hidden}
 
-  echo "> $command_out"
+  printf "${TXT_PROMPT}> ${TXT_NORMAL}${TXT_COMMAND}$command_out${TXT_NORMAL}\n\n"
 }
 
 
@@ -309,7 +365,7 @@ run_command()
   command_run=${command/'<password>'/$db_password_out}
 
   if [ -n "$dry_run" ]; then
-    printf "  -- DRY RUN -- No Command Run\n"
+    printf "${TXT_NOTICE}  -- DRY RUN -- No Command Run${TXT_NORMAL}\n"
   else
     eval "$command_run" &
     pid=$!
@@ -319,7 +375,7 @@ run_command()
 
     while kill -n 0 $pid 2>/dev/null; do
       rotate="${rotate#?}${rotate%???}"
-      printf '%.1s\b' "$rotate"
+      printf '%.1s\b' "${TXT_SPINNER}$rotate${TXT_NORMAL}"
       sleep 0.125
     done
 
@@ -330,24 +386,12 @@ run_command()
 
 
 ##############################################################################
-output_fail_and_exit()
-##############################################################################
-{
-  printf "${TXTRED}***** COMMAND FAILED *****${TXTNORMAL}\n\n"
-  exit
-}
-
-
-##############################################################################
 run_command_or_fail()
 ##############################################################################
 {
   command=$1
 
-  trap 'output_fail_and_exit' ERR
-  set -o pipefail
-
-  run_command "$1"
+  run_command "$command"
 }
 
 
@@ -357,9 +401,9 @@ output_and_run_command()
 {
   command=$1
 
-  output_command "$1"
+  output_command "$command"
 
-  run_command "$1"
+  run_command "$command"
 }
 
 
@@ -369,9 +413,15 @@ output_and_run_command_or_fail()
 {
   command=$1
 
-  output_command "$1"
+  if [ -n "$2" ]; then
+    outfile=$2
+    command="$command > $outfile"
+    add_on_err rm -f "$outfile"
+  fi
 
-  run_command_or_fail "$1"
+  output_command "$command"
+
+  run_command_or_fail "$command"
 }
 
 
@@ -397,13 +447,13 @@ optionally_compress_file()
   if [ -n "$bzip2" ]; then
     command="bzip2 $original_file"
 
-    echo -e "\n## Compressing file with bzip2: \"$filename\""
+    printf "\n${TXT_NOTICE}## Compressing file with bzip2: \"$filename\"${TXT_NORMAL}\n"
     output_and_run_command_or_fail "$command"
 
   elif [ -n "$gzip" ]; then
     command="gzip $original_file"
 
-    echo -e "\n## Compressing file with gzip: \"$filename\""
+    printf "\n${TXT_NOTICE}## Compressing file with gzip: \"$filename\"${TXT_NORMAL}\n"
     output_and_run_command_or_fail "$command"
   fi
 }
@@ -447,7 +497,7 @@ redirect_from_input()
       input_process="gzip -dc"
       ;;
     *)
-      echo -e "\n$COMMAND: input format not supported"
+      printf "\n${TXT_EXIT}$COMMAND: input format not supported${TXT_NORMAL}\n"
       help_prompt
       exit $E_INPUT_TYPE_ERROR
       ;;
@@ -468,8 +518,8 @@ backup_source_db()
 
   command="mysqldump -u '$db_username'<password> '$source_db' > $source_db_output"
 
-  echo -e "\n\n## Creating dump of source database: \"$source_db\""
-  output_and_run_command_or_fail "$command"
+  printf "\n\n${TXT_NOTICE}## Creating dump of source database: \"$source_db\"${TXT_NORMAL}\n"
+  output_and_run_command_or_fail "$command" "$source_db_output"
 
   optionally_compress_file "$source_db_output"
 }
@@ -482,15 +532,15 @@ check_for_destination_db()
   # check if destination database exists
   command="mysql --batch --skip-column-names -u '$db_username'$db_password_out -e 'SHOW DATABASES LIKE \"$destination_db\"' | grep -q '$destination_db'"
 
-  echo -e "\n\n## Check if destination database exists: \"$destination_db\""
+  printf "\n\n${TXT_NOTICE}## Check if destination database exists: \"$destination_db\"${TXT_NORMAL}\n"
 
   run_command_or_fail "$command"
 
   if [ "$?" -eq "0" ]; then
-    printf "## Destination database exists"
+    printf "${TXT_NOTICE}## Destination database exists${TXT_NORMAL}\n"
     return 0
   else
-    printf "## Destination database does not exist"
+    printf "${TXT_NOTICE}## Destination database does not exist${TXT_NORMAL}\n"
     return 1
   fi
 }
@@ -508,13 +558,13 @@ backup_destination_db()
 
     command="mysqldump -u '$db_username'<password> '$destination_db' > $destination_db_output"
 
-    printf "... Backing up: \"$destination_db\"\n"
-    output_and_run_command_or_fail "$command"
+    printf "${TXT_NOTICE}... Backing up: \"$destination_db\"${TXT_NORMAL}\n"
+    output_and_run_command_or_fail "$command" "$destination_db_output"
 
     optionally_compress_file "$destination_db_output"
 
   else
-    printf "... Skipping backup\n"
+    printf "${TXT_NOTICE}... Skipping backup${TXT_NORMAL}\n"
   fi
 }
 
@@ -525,7 +575,7 @@ create_destination_db()
 {
   command="mysql -u '$db_username'<password> -e 'DROP DATABASE IF EXISTS \`$destination_db\`; CREATE DATABASE \`$destination_db\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;'"
 
-  echo -e "\n\n## Creating empty destination database: \"$destination_db\""
+  printf "\n\n${TXT_NOTICE}## Creating empty destination database: \"$destination_db\"${TXT_NORMAL}\n"
   output_and_run_command_or_fail "$command"
 }
 
@@ -536,12 +586,9 @@ copy_source_to_destination_db()
 {
   source_db_file=$1
 
-  trap 'output_fail_and_exit' ERR
-  set -o pipefail
-
   command="$(redirect_from_input "$source_db_file") | mysql -u '$db_username'<password> '$destination_db'"
 
-  echo -e "\n\n## Copying source database dump to destination database: \"$destination_db\""
+  printf "\n\n${TXT_NOTICE}## Copying source database dump to destination database: \"$destination_db\"${TXT_NORMAL}\n"
   output_and_run_command_or_fail "$command"
 }
 
@@ -549,4 +596,5 @@ copy_source_to_destination_db()
 ##############################################################################
 # call main function
 ##############################################################################
+
 main "$@"
