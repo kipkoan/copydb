@@ -1,18 +1,20 @@
 #!/bin/bash
 
 E_OPTION_ERROR=1
-E_INPUT_TYPE_ERROR=1
+E_INPUT_TYPE_ERROR=5
+E_FAIL_ERROR=5
 COMMAND=`basename $0`
 
 # Set constants for formatting output
 TXT_NORMAL=$(tput sgr0)
-TXT_ERROR=$(tput setab 1)
-TXT_EXIT=$(tput setaf 1)
-TXT_WARNING=$(tput setaf 2)
-TXT_PROMPT=$(tput setaf 3)
-TXT_NOTICE=$(tput setaf 2)
+TXT_BOLD=$(tput bold)
 TXT_COMMAND=$(tput setaf 4)
-TXT_SPINNER=$(tput setab 5; tput setaf 3)
+TXT_NOTICE=$(tput setaf 6)
+TXT_SUCCESS=$(tput setaf 2)
+TXT_WARNING=$(tput setaf 5; tput bold)
+TXT_ERROR=$(tput setaf 1)
+TXT_FAIL=$(tput setab 1; tput bold)
+TXT_PROMPT=$(tput setaf 3)
 
 
 ##############################################################################
@@ -20,7 +22,7 @@ main()
 ##############################################################################
 {
   # notify when any command fails
-  add_on_err 'printf "\n${TXT_ERROR}***** COMMAND FAILED *****${TXT_NORMAL}\n\n"'
+  add_on_err 'printf "\n${TXT_FAIL}*****  $COMMAND FAILED  *****${TXT_NORMAL}\n\n"'
 
   get_options "$@"
 
@@ -28,31 +30,29 @@ main()
   shift $(($OPTIND - 1))
   OPTIND=1
 
-  if [ -n "$source_file" ]; then   # SOURCE_FILE mode:
+  if [ -n "$source_file" ]; then    # SOURCE_FILE mode:
+    source_location=$source_file
+    source_type="file"
+    backup_source=false
     get_operands_source_file "$@"
-    set_common_variables
-
-    if [ -n "$destination_db" ]; then   # copy source to destination
-      prod_db_overwrite_test "a file ('$source_file')"
-      backup_destination_db
-      create_destination_db
-      copy_source_to_destination_db "$source_file"
-    fi
-
-  else   # SOURCE_DATABASE mode:
+  else    # SOURCE_DATABASE mode:
+    source_location=$source_db
+    source_type="database"
+    backup_source=true
     get_operands_source_database "$@"
-    set_common_variables
-
-    if [ -n "$destination_db" ]; then   # copy source to destination
-      prod_db_overwrite_test "a database (\`$source_db\`)"
-      backup_source_db   # sets $source_db_output
-      backup_destination_db
-      create_destination_db
-      copy_source_to_destination_db "$source_db_output"
-    else   # backup source database
-      backup_source_db
-    fi
   fi
+
+  set_common_variables    # sets Comment, Username, Password, & Date
+
+  check_db_connection
+  prod_db_overwrite_test "a $source_type ('$source_location')"
+  if $backup_source; then
+    backup_source_db    # sets $source_db_output
+    source_file=$source_db_output
+  fi
+  backup_destination_db
+  create_destination_db
+  copy_source_to_destination_db "$source_file"
 
   # output line break for aesthatic purposes
   printf "\n"
@@ -128,12 +128,12 @@ get_options()
         dry_run=TRUE
         ;;
       \?)
-        printf "${TXT_EXIT}$COMMAND: Invalid option: -$OPTARG${TXT_NORMAL}\n"
+        printf "${TXT_ERROR}$COMMAND: Invalid option: -$OPTARG${TXT_NORMAL}\n"
         help_prompt
         exit $E_OPTION_ERROR
         ;;
       :)
-        printf "${TXT_EXIT}$COMMAND: Option -$OPTARG requires an argument.${TXT_NORMAL}\n"
+        printf "${TXT_ERROR}$COMMAND: Option -$OPTARG requires an argument.${TXT_NORMAL}\n"
         help_prompt
         exit $E_OPTION_ERROR
         ;;
@@ -149,7 +149,7 @@ get_operands_source_file()
   # check for the right # of arguments
   case $# in
     0)
-      printf "${TXT_EXIT}$COMMAND: missing DESTINATION_DATABASE operand${TXT_NORMAL}\n"
+      printf "${TXT_ERROR}$COMMAND: missing DESTINATION_DATABASE operand${TXT_NORMAL}\n"
       help_prompt
       exit $E_OPTION_ERROR
       ;;
@@ -157,7 +157,7 @@ get_operands_source_file()
       destination_db=$1
       ;;
     *)
-      printf "${TXT_EXIT}$COMMAND: too many operands${TXT_NORMAL}\n"
+      printf "${TXT_ERROR}$COMMAND: too many operands${TXT_NORMAL}\n"
       help_prompt
       exit $E_OPTION_ERROR
       ;;
@@ -172,7 +172,7 @@ get_operands_source_database()
   # check for the right # of arguments
   case $# in
     0)
-      printf "${TXT_EXIT}$COMMAND: missing SOURCE_DATABASE operand${TXT_NORMAL}\n"
+      printf "${TXT_ERROR}$COMMAND: missing SOURCE_DATABASE operand${TXT_NORMAL}\n"
       help_prompt
       exit $E_OPTION_ERROR
       ;;
@@ -185,7 +185,7 @@ get_operands_source_database()
       destination_db=$2
       ;;
     *)
-      printf "${TXT_EXIT}$COMMAND: too many operands${TXT_NORMAL}\n"
+      printf "${TXT_ERROR}$COMMAND: too many operands${TXT_NORMAL}\n"
       help_prompt
       exit $E_OPTION_ERROR
       ;;
@@ -213,8 +213,8 @@ prod_db_overwrite_test()
     read -p "${TXT_PROMPT}Are you sure? ${TXT_NORMAL}" confirm
 
     if [ $confirm != "CONFIRM" ]; then
-      printf "${TXT_EXIT}## Exiting program without making any changes${TXT_NORMAL}\n"
-      exit
+      printf "\n${TXT_ERROR}## Exiting program without making any changes${TXT_NORMAL}\n\n"
+      exit 1
     fi
   fi
 }
@@ -266,6 +266,7 @@ set_db_password()
   elif [ -n "${password+isSet}" ]; then
     db_password=
   else
+    printf "\n"
     read -s -p "${TXT_PROMPT}DB Password for user '$db_username': ${TXT_NORMAL}" db_password
     printf "\n"
   fi
@@ -323,11 +324,15 @@ add_on_exit()
 on_err()
 ##############################################################################
 {
-  for i in "${on_err_items[@]}"; do
-    eval $i
-  done
+  exitCode=$?
 
-  exit
+  if [[ $exitCode == 5 ]]; then
+    for i in "${on_err_items[@]}"; do
+      eval $i
+    done
+  fi
+
+  exit $exitCode
 }
 
 
@@ -338,8 +343,8 @@ add_on_err()
   local n=${#on_err_items[*]}
   on_err_items[$n]="$*"
   if [[ $n -eq 0 ]]; then
-    trap on_err 1 2 3 15 ERR
     set -E -o pipefail
+    trap on_err EXIT
   fi
 }
 
@@ -349,15 +354,20 @@ output_command()
 ##############################################################################
 {
   command=$1
+  outfile=$2
+
+  if [ -n "$outfile" ]; then
+    command="$command > $outfile"
+  fi
 
   command_out=${command//'<password>'/$db_password_out_hidden}
 
-  printf "${TXT_PROMPT}> ${TXT_NORMAL}${TXT_COMMAND}$command_out${TXT_NORMAL}\n\n"
+  printf "${TXT_PROMPT}> ${TXT_NORMAL}${TXT_COMMAND}$command_out${TXT_NORMAL}\n"
 }
 
 
 ##############################################################################
-run_command()
+_run_command()
 ##############################################################################
 {
   command=$1
@@ -375,53 +385,48 @@ run_command()
 
     while kill -n 0 $pid 2>/dev/null; do
       rotate="${rotate#?}${rotate%???}"
-      printf '%.1s\b' "${TXT_SPINNER}$rotate${TXT_NORMAL}"
+      printf '%.1s\b' "$rotate"
       sleep 0.125
     done
 
-    printf " \n"
+    printf "\b"
     wait $pid
   fi
 }
 
 
 ##############################################################################
-run_command_or_fail()
+run_command()
 ##############################################################################
 {
   command=$1
+  outfile=$2
+  error_handling=$3
+  fail_command=$4
 
-  run_command "$command"
-}
-
-
-##############################################################################
-output_and_run_command()
-##############################################################################
-{
-  command=$1
-
-  output_command "$command"
-
-  run_command "$command"
-}
-
-
-##############################################################################
-output_and_run_command_or_fail()
-##############################################################################
-{
-  command=$1
-
-  if [ -n "$2" ]; then
-    outfile=$2
+  if [ -n "$outfile" ]; then
     command="$command > $outfile"
-    add_on_err rm -f "$outfile"
   fi
 
-  output_command "$command"
+  if [ -n "$fail_command" ]; then
+    add_on_err $fail_command
+  fi
 
-  run_command_or_fail "$command"
+  _run_command "$command"
+  return_code=$?
+
+  if [ $error_handling != "silent" ]; then
+    if [ $return_code -eq "0" ]; then
+      printf "${TXT_SUCCESS}###   [ PASS ]   ###${TXT_NORMAL}\n"
+    else
+      printf "${TXT_ERROR}###   [ FAIL ]   ###${TXT_NORMAL}\n"
+      if [ "$error_handling" == "fail" ]; then
+        exit 5    # Trap Error & Exit
+      fi
+    fi
+  fi
+
+  return $return_code
 }
 
 
@@ -448,13 +453,15 @@ optionally_compress_file()
     command="bzip2 $original_file"
 
     printf "\n${TXT_NOTICE}## Compressing file with bzip2: \"$filename\"${TXT_NORMAL}\n"
-    output_and_run_command_or_fail "$command"
+    output_command "$command"
+    run_command "$command" "" "fail"
 
   elif [ -n "$gzip" ]; then
     command="gzip $original_file"
 
     printf "\n${TXT_NOTICE}## Compressing file with gzip: \"$filename\"${TXT_NORMAL}\n"
-    output_and_run_command_or_fail "$command"
+    output_command "$command"
+    run_command "$command" "" "fail"
   fi
 }
 
@@ -497,7 +504,7 @@ redirect_from_input()
       input_process="gzip -dc"
       ;;
     *)
-      printf "\n${TXT_EXIT}$COMMAND: input format not supported${TXT_NORMAL}\n"
+      printf "\n${TXT_ERROR}$COMMAND: input format not supported${TXT_NORMAL}\n"
       help_prompt
       exit $E_INPUT_TYPE_ERROR
       ;;
@@ -519,9 +526,24 @@ backup_source_db()
   command="mysqldump -u '$db_username'<password> '$source_db' > $source_db_output"
 
   printf "\n\n${TXT_NOTICE}## Creating dump of source database: \"$source_db\"${TXT_NORMAL}\n"
-  output_and_run_command_or_fail "$command" "$source_db_output"
+
+  output_command "$command" "$source_db_output"
+  run_command "$command" "$source_db_output" "fail" "rm -f $source_db_output"
 
   optionally_compress_file "$source_db_output"
+}
+
+
+##############################################################################
+check_db_connection()
+##############################################################################
+{
+  # check if destination database exists
+  command="mysql --batch --skip-column-names -u '$db_username'$db_password_out -e 'connect'"
+
+  printf "\n\n${TXT_NOTICE}## Checking database connection...${TXT_NORMAL}\n"
+
+  run_command "$command" "" "fail"
 }
 
 
@@ -532,11 +554,12 @@ check_for_destination_db()
   # check if destination database exists
   command="mysql --batch --skip-column-names -u '$db_username'$db_password_out -e 'SHOW DATABASES LIKE \"$destination_db\"' | grep -q '$destination_db'"
 
-  printf "\n\n${TXT_NOTICE}## Check if destination database exists: \"$destination_db\"${TXT_NORMAL}\n"
+  printf "\n\n${TXT_NOTICE}## Checking if destination database exists: \"$destination_db\"${TXT_NORMAL}\n"
 
-  run_command_or_fail "$command"
+  run_command "$command" "" "silent"
+  return_code=$?
 
-  if [ "$?" -eq "0" ]; then
+  if [ "$return_code" -eq "0" ]; then
     printf "${TXT_NOTICE}## Destination database exists${TXT_NORMAL}\n"
     return 0
   else
@@ -558,13 +581,15 @@ backup_destination_db()
 
     command="mysqldump -u '$db_username'<password> '$destination_db' > $destination_db_output"
 
-    printf "${TXT_NOTICE}... Backing up: \"$destination_db\"${TXT_NORMAL}\n"
-    output_and_run_command_or_fail "$command" "$destination_db_output"
+    printf "${TXT_NOTICE}## Backing up: \"$destination_db\"${TXT_NORMAL}\n"
+
+    output_command "$command" "$destination_db_output"
+    run_command "$command" "$destination_db_output" "fail" "rm -f $destination_db_output"
 
     optionally_compress_file "$destination_db_output"
 
   else
-    printf "${TXT_NOTICE}... Skipping backup${TXT_NORMAL}\n"
+    printf "${TXT_NOTICE}## Skipping backup${TXT_NORMAL}\n"
   fi
 }
 
@@ -576,7 +601,9 @@ create_destination_db()
   command="mysql -u '$db_username'<password> -e 'DROP DATABASE IF EXISTS \`$destination_db\`; CREATE DATABASE \`$destination_db\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;'"
 
   printf "\n\n${TXT_NOTICE}## Creating empty destination database: \"$destination_db\"${TXT_NORMAL}\n"
-  output_and_run_command_or_fail "$command"
+
+  output_command "$command"
+  run_command "$command" "" "fail"
 }
 
 
@@ -589,7 +616,9 @@ copy_source_to_destination_db()
   command="$(redirect_from_input "$source_db_file") | mysql -u '$db_username'<password> '$destination_db'"
 
   printf "\n\n${TXT_NOTICE}## Copying source database dump to destination database: \"$destination_db\"${TXT_NORMAL}\n"
-  output_and_run_command_or_fail "$command"
+
+  output_command "$command" "$outfile"
+  run_command "$command" "$outfile" "fail" "rm -f $outfile"
 }
 
 
