@@ -25,7 +25,7 @@ main()
 ##############################################################################
 {
   # notify when any command fails
-  add_on_exit 'printf "\n${TXT_FAIL}*****  $COMMAND FAILED  *****${TXT_NORMAL}\n\n"'
+  add_on_fail 'printf "\n${TXT_FAIL}*****  $COMMAND FAILED  *****${TXT_NORMAL}\n\n"'
 
   get_options "$@"
 
@@ -54,8 +54,6 @@ main()
   if $backup_source; then
     backup_source_db    # sets $source_db_output
     source_file="$source_db_output"
-    printf "\n\ngot here\n\n"
-    printf "\$source_file = $source_file\n\n"
   fi
 
   if [ -n "$destination_db" ]; then
@@ -315,7 +313,8 @@ on_exit()
   exitCode=$?
 
   if [[ $exitCode == $E_FAIL_ERROR ]]; then
-    for i in "${on_exit_items[@]}"; do
+    for i in "${on_fail_items[@]}"; do
+#      printf "cleanup:  $i\n"
       eval "$i"
     done
   fi
@@ -325,11 +324,11 @@ on_exit()
 
 
 ##############################################################################
-add_on_exit()
+add_on_fail()
 ##############################################################################
 {
-  local n=${#on_exit_items[*]}
-  on_exit_items[$n]="$*"
+  local n=${#on_fail_items[*]}
+  on_fail_items[$n]="$*"
   if [ $n -eq 0 ]; then
     set -E -o pipefail
     trap on_exit EXIT
@@ -390,14 +389,9 @@ run_command()
   command=$1
   outfile=$2
   error_handling=$3
-  fail_command=$4
 
   if [ -n "$outfile" ]; then
     command="$command > '$outfile'"
-  fi
-
-  if [ -n "$fail_command" ]; then
-    add_on_exit $fail_command
   fi
 
   _run_command "$command"
@@ -435,7 +429,8 @@ output_filename()
 optionally_compress_file()
 ##############################################################################
 {
-  filename=$1
+  file_reference=$1
+  filename=${!file_reference}
 
   if [ $use_bzip2 ]; then
     printf "\n${TXT_NOTICE}## Compressing file with bzip2: \"$filename\"${TXT_NORMAL}\n"
@@ -462,7 +457,9 @@ optionally_compress_file()
     file_extension="gz"
   fi
 
-  if [ $return_code ]; then
+  if [ $return_code ]; then    # rename the file
+    filename="${filename}.${file_extension}"
+    eval "$file_reference='$filename'"
   fi
 }
 
@@ -519,9 +516,11 @@ backup_source_db()
   command="mysqldump -u '$db_username'<password> '$source_db'"
 
   output_command "$command" "$source_db_output"
-  run_command "$command" "$source_db_output" "fail" "rm -f '$source_db_output'"
+  run_command "$command" "$source_db_output" "fail"
+  add_on_fail "rm -f '$source_db_output'"
 
-  optionally_compress_file "$source_db_output"
+  optionally_compress_file "source_db_output"    # sets $source_db_output to new filename
+  add_on_fail "rm -f '$source_db_output'"
 }
 
 
@@ -575,9 +574,9 @@ backup_destination_db()
     command="mysqldump -u '$db_username'<password> '$destination_db'"
 
     output_command "$command" "$destination_db_output"
-    run_command "$command" "$destination_db_output" "fail" "rm -f '$destination_db_output'"
+    run_command "$command" "$destination_db_output" "fail"
 
-    optionally_compress_file "$destination_db_output"
+    optionally_compress_file "destination_db_output"    # sets $destination_db_output to new filename
 
   else
     printf "${TXT_NOTICE}## Skipping backup${TXT_NORMAL}\n"
