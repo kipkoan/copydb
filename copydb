@@ -34,7 +34,7 @@ main()
   OPTIND=1
 
   if [ -n "$source_file" ]; then    # SOURCE_FILE mode:
-    source_location=$source_file
+    source_location="$source_file"
     source_type="file"
     backup_source=false
     get_operands_source_file "$@"
@@ -53,7 +53,7 @@ main()
 
   if $backup_source; then
     backup_source_db    # sets $source_db_output
-    source_file=$source_db_output
+    source_file="$source_db_output"
   fi
 
   if [ -n "$destination_db" ]; then
@@ -115,25 +115,25 @@ get_options()
         exit
         ;;
       s)
-        source_file=$OPTARG
+        source_file="$OPTARG"
         ;;
       c)
-        comment=$OPTARG
+        comment="$OPTARG"
         ;;
       u)
-        username=$OPTARG
+        username="$OPTARG"
         ;;
       p)
-        password=$OPTARG
+        password="$OPTARG"
         ;;
       b)
-        bzip2=TRUE
+        use_bzip2=true
         ;;
       g)
-        gzip=TRUE
+        use_gzip=true
         ;;
       n)
-        dry_run=TRUE
+        dry_run=true
         ;;
       \?)
         printf "${TXT_ERROR}$COMMAND: Invalid option: -$OPTARG${TXT_NORMAL}\n"
@@ -435,7 +435,7 @@ optionally_compress_file()
 {
   filename=$1
 
-  if [ -n "$bzip2" ]; then
+  if [ $use_bzip2 ]; then
     printf "\n${TXT_NOTICE}## Compressing file with bzip2: \"$filename\"${TXT_NORMAL}\n"
 
     command="bzip2 $original_file"
@@ -443,7 +443,7 @@ optionally_compress_file()
     output_command "$command"
     run_command "$command" "" "fail"
 
-  elif [ -n "$gzip" ]; then
+  elif [ $use_gzip ]; then
     printf "\n${TXT_NOTICE}## Compressing file with gzip: \"$filename\"${TXT_NORMAL}\n"
 
     command="gzip $original_file"
@@ -460,14 +460,14 @@ output_source_file_command()
 {
   source_file="$1"
 
-  if [ ! -e '$source_file' ]; then
-    echo "$source_file"
+  if [ ! -e "$source_file" ]; then
+#    printf "got here \n"
+#    echo $(file -ib "$source_file")
+#    printf "\$source_file = $source_file\n"
     exit $E_SOURCE_FILE_NOT_FOUND
-  elif [ ! -f '$source_file' ]; then
-    echo "$source_file"
+  elif [ ! -f "$source_file" ]; then
     exit $E_INVALID_SOURCE_FILE
-  elif [ ! -r '$source_file' ]; then
-    echo "$source_file"
+  elif [ ! -r "$source_file" ]; then
     exit $E_CANT_READ_SOURCE_FILE
   fi
 
@@ -589,11 +589,11 @@ create_destination_db()
 copy_source_to_destination_db()
 ##############################################################################
 {
-  source_db_file=$1
+  source_file="$1"
 
   printf "\n\n${TXT_NOTICE}## Copying source to destination database: \"$destination_db\"${TXT_NORMAL}\n"
 
-  output_source_file_command="$(output_source_file_command $source_db_file)"
+  output_source_file_command=$(output_source_file_command "$source_file")
   return_code=$?
 
   case $return_code in
@@ -603,23 +603,24 @@ copy_source_to_destination_db()
       run_command "$command" "$outfile" "fail" "rm -f $outfile"
       ;;
     $E_SOURCE_FILE_NOT_FOUND)
-      output="${TXT_ERROR}$COMMAND: source file not found${TXT_NORMAL}\n"
+      error="source file not found"
       ;;
     $E_CANT_READ_SOURCE_FILE)
-      output="${TXT_ERROR}$COMMAND: cannot read source file${TXT_NORMAL}\n"
+      error="cannot read source file"
       ;;
     $E_SOURCE_TYPE_ERROR)
-      output="${TXT_ERROR}$COMMAND: source format not supported${TXT_NORMAL}\n"
+      error="source format not supported"
       ;;
     $E_INVALID_SOURCE_FILE)
-      output="${TXT_ERROR}$COMMAND: invalid source file${TXT_NORMAL}\n"
+      error="invalid source file"
       ;;
     *)
-      output="${TXT_ERROR}$COMMAND: problem with source file${TXT_NORMAL}\n"
+      error="problem with source file"
       ;;
   esac
 
   if [ $return_code != 0 ]; then
+    output="${TXT_ERROR}$COMMAND: ${error}: \"${source_file}\"${TXT_NORMAL}\n"
     printf "$output"
     printf "${TXT_ERROR}###   [ FAIL ]   ###${TXT_NORMAL}\n"
     exit $E_FAIL_ERROR
