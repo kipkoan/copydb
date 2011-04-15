@@ -48,14 +48,19 @@ main()
   set_common_variables    # sets Comment, Username, Password, & Date
 
   check_db_connection
+
   prod_db_overwrite_test "a $source_type ('$source_location')"
+
   if $backup_source; then
     backup_source_db    # sets $source_db_output
     source_file=$source_db_output
   fi
-  backup_destination_db
-  create_destination_db
-  copy_source_to_destination_db "$source_file"
+
+  if [ -n "$destination_db" ]; then
+    backup_destination_db
+    create_destination_db
+    copy_source_to_destination_db "$source_file"
+  fi
 
   # output line break for aesthatic purposes
   printf "\n"
@@ -307,11 +312,11 @@ on_exit()
 {
   exitCode=$?
 
-  if [[ $exitCode == $E_FAIL_ERROR ]]; then
-    for i in "${on_exit_items[@]}"; do
-      eval $i
-    done
-  fi
+#  if [[ $exitCode == $E_FAIL_ERROR ]]; then
+#    for i in "${on_exit_items[@]}"; do
+#      eval $i
+#    done
+#  fi
 
   exit $exitCode
 }
@@ -338,7 +343,7 @@ output_command()
   outfile=$2
 
   if [ -n "$outfile" ]; then
-    command="$command > $outfile"
+    command="$command > '$outfile'"
   fi
 
   command_out=${command//'<password>'/$db_password_out_hidden}
@@ -386,7 +391,7 @@ run_command()
   fail_command=$4
 
   if [ -n "$outfile" ]; then
-    command="$command > $outfile"
+    command="$command > '$outfile'"
   fi
 
   if [ -n "$fail_command" ]; then
@@ -453,13 +458,16 @@ optionally_compress_file()
 output_source_file_command()
 ##############################################################################
 {
-  source_file=$1
+  source_file="$1"
 
-  if [ ! -e "$source_file" ]; then
+  if [ ! -e '$source_file' ]; then
+    echo "$source_file"
     exit $E_SOURCE_FILE_NOT_FOUND
-  elif [ ! -f "$source_file" ]; then
+  elif [ ! -f '$source_file' ]; then
+    echo "$source_file"
     exit $E_INVALID_SOURCE_FILE
-  elif [ ! -r "$source_file" ]; then
+  elif [ ! -r '$source_file' ]; then
+    echo "$source_file"
     exit $E_CANT_READ_SOURCE_FILE
   fi
 
@@ -495,7 +503,7 @@ backup_source_db()
   # set source output filename
   source_db_output=$(output_filename 'source' "$source_db")
 
-  command="mysqldump -u '$db_username'<password> '$source_db' > $source_db_output"
+  command="mysqldump -u '$db_username'<password> '$source_db'"
 
   output_command "$command" "$source_db_output"
   run_command "$command" "$source_db_output" "fail" "rm -f $source_db_output"
@@ -551,7 +559,7 @@ backup_destination_db()
     # set destination output filename
     destination_db_output=$(output_filename 'destination' "$destination_db")
 
-    command="mysqldump -u '$db_username'<password> '$destination_db' > $destination_db_output"
+    command="mysqldump -u '$db_username'<password> '$destination_db'"
 
     output_command "$command" "$destination_db_output"
     run_command "$command" "$destination_db_output" "fail" "rm -f $destination_db_output"
