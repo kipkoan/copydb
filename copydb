@@ -398,7 +398,7 @@ run_command()
   return_code=$?
 
   if [ $error_handling != "silent" ]; then
-    if $return_code; then
+    if [ $return_code ]; then
       printf "${TXT_SUCCESS}###   [ PASS ]   ###${TXT_NORMAL}\n"
     else
       printf "${TXT_ERROR}###   [ FAIL ]   ###${TXT_NORMAL}\n"
@@ -458,7 +458,7 @@ optionally_compress_file()
     file_extension="gz"
   fi
 
-  if $return_code; then    # rename the file
+  if [ $return_code ]; then    # rename the file
 printf "\n\ngot here\n\n"
 printf "\$return_code = $return_code\n\n"
     filename="${filename}.${file_extension}"
@@ -552,7 +552,7 @@ check_for_destination_db()
   run_command "$command" "" "silent"
   return_code=$?
 
-  if $return_code; then
+  if [ $return_code ]; then
     printf "${TXT_NOTICE}## Destination database exists${TXT_NORMAL}\n"
     return 0
   else
@@ -569,7 +569,7 @@ backup_destination_db()
   check_for_destination_db
   return_code=$?
 
-  if $return_code; then
+  if [ $return_code ]; then
     printf "${TXT_NOTICE}## Backing up: \"$destination_db\"${TXT_NORMAL}\n"
 
     # set destination output filename
