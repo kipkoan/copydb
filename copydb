@@ -431,7 +431,7 @@ optionally_compress_file()
 {
   file_reference=$1
   filename=${!file_reference}
-  return_code=false
+  local return_code
 
   if [[ -n $use_bzip2 ]] && [[ $use_bzip == true ]]; then
     printf "\n${TXT_NOTICE}## Compressing file with bzip2: \"$filename\"${TXT_NORMAL}\n"
@@ -458,7 +458,8 @@ optionally_compress_file()
     file_extension="gz"
   fi
 
-  if [[ $return_code -eq 0 ]]; then    # rename the file
+  if [[ -n $return_code ]] && [[ $return_code -eq 0 ]]; then    # rename the file
+printf "\n\n\$return_code = $return_code\n\n"
     filename="${filename}.${file_extension}"
     eval "$file_reference='$filename'"
   fi
