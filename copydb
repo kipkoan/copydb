@@ -398,7 +398,7 @@ run_command()
   return_code=$?
 
   if [ $error_handling != "silent" ]; then
-    if [ $return_code ]; then
+    if [ $return_code -eq 0 ]; then
       printf "${TXT_SUCCESS}###   [ PASS ]   ###${TXT_NORMAL}\n"
     else
       printf "${TXT_ERROR}###   [ FAIL ]   ###${TXT_NORMAL}\n"
@@ -433,7 +433,7 @@ optionally_compress_file()
   filename=${!file_reference}
   return_code=false
 
-  if $use_bzip2; then
+  if [[ -n $use_bzip2 ]] && [[ $use_bzip == true ]]; then
     printf "\n${TXT_NOTICE}## Compressing file with bzip2: \"$filename\"${TXT_NORMAL}\n"
 
     command="bzip2 '$filename'"
@@ -445,7 +445,7 @@ optionally_compress_file()
 
     file_extension="bz2"
 
-  elif $use_gzip; then
+  elif [[ -n $use_gzip ]] && [[ $use_gzip == true ]]; then
     printf "\n${TXT_NOTICE}## Compressing file with gzip: \"$filename\"${TXT_NORMAL}\n"
 
     command="gzip '$filename'"
@@ -458,9 +458,7 @@ optionally_compress_file()
     file_extension="gz"
   fi
 
-  if [ $return_code ]; then    # rename the file
-printf "\n\ngot here\n\n"
-printf "\$return_code = $return_code\n\n"
+  if [ $return_code -eq 0 ]; then    # rename the file
     filename="${filename}.${file_extension}"
     eval "$file_reference='$filename'"
   fi
@@ -474,9 +472,6 @@ output_source_file_command()
   source_file="$1"
 
   if [ ! -e "$source_file" ]; then
-#    printf "got here \n"
-#    echo $(file -ib "$source_file")
-#    printf "\$source_file = $source_file\n"
     exit $E_SOURCE_FILE_NOT_FOUND
   elif [ ! -f "$source_file" ]; then
     exit $E_INVALID_SOURCE_FILE
@@ -552,7 +547,7 @@ check_for_destination_db()
   run_command "$command" "" "silent"
   return_code=$?
 
-  if [ $return_code ]; then
+  if [ $return_code -eq 0 ]; then
     printf "${TXT_NOTICE}## Destination database exists${TXT_NORMAL}\n"
     return 0
   else
@@ -569,7 +564,7 @@ backup_destination_db()
   check_for_destination_db
   return_code=$?
 
-  if [ $return_code ]; then
+  if [ $return_code -eq 0 ]; then
     printf "${TXT_NOTICE}## Backing up: \"$destination_db\"${TXT_NORMAL}\n"
 
     # set destination output filename
@@ -635,7 +630,7 @@ copy_source_to_destination_db()
       ;;
   esac
 
-  if ! $return_code; then
+  if [ $return_code -ne 0 ]; then
     output="${TXT_ERROR}$COMMAND: ${error}: \"${source_file}\"${TXT_NORMAL}\n"
     printf "$output"
     printf "${TXT_ERROR}###   [ FAIL ]   ###${TXT_NORMAL}\n"
