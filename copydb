@@ -434,7 +434,7 @@ optionally_compress_file()
   local return_code
   local command
 
-  if [[ -n $use_bzip2 ]] && [[ $use_bzip == true ]]; then
+  if [[ -n $use_bzip2 ]] && [[ $use_bzip2 == true ]]; then
     printf "\n${TXT_NOTICE}## Compressing file with bzip2: \"$filename\"${TXT_NORMAL}\n"
 
     command="bzip2 '$filename'"
