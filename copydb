@@ -312,12 +312,11 @@ on_exit()
 {
   exitCode=$?
 
-#  if [[ $exitCode == $E_FAIL_ERROR ]]; then
-#    for i in "${on_fail_items[@]}"; do
-#      printf "cleanup:  $i\n"
-#      eval "$i"
-#    done
-#  fi
+  if [[ $exitCode == $E_FAIL_ERROR ]]; then
+    for i in "${on_fail_items[@]}"; do
+      eval "$i"
+    done
+  fi
 
   exit $exitCode
 }
