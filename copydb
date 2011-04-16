@@ -33,7 +33,7 @@ main()
   shift $(($OPTIND - 1))
   OPTIND=1
 
-  if [ -n "$source_file" ]; then    # SOURCE_FILE mode:
+  if [[ -n "$source_file" ]]; then    # SOURCE_FILE mode:
     source_location="$source_file"
     source_type="file"
     backup_source=false
@@ -56,7 +56,7 @@ main()
     source_file="$source_db_output"
   fi
 
-  if [ -n "$destination_db" ]; then
+  if [[ -n "$destination_db" ]]; then
     backup_destination_db
     create_destination_db
     copy_source_to_destination_db "$source_file"
@@ -207,7 +207,7 @@ prod_db_overwrite_test()
 {
   source_comment=$1
 
-  if [ $destination_db =~ '_prod' ]; then
+  if [[ $destination_db =~ '_prod' ]]; then
     printf "\n${TXT_WARNING}*******************************************************************************\n"
     printf "*                            !!!!!  WARNING !!!!!                             *\n"
     printf "*                                                                             *\n"
@@ -220,7 +220,7 @@ prod_db_overwrite_test()
     printf "\n"
     read -p "${TXT_PROMPT}Are you sure? ${TXT_NORMAL}" confirm
 
-    if [ $confirm != "CONFIRM" ]; then
+    if [[ $confirm != "CONFIRM" ]]; then
       printf "\n${TXT_ERROR}## Exiting program without making any changes${TXT_NORMAL}\n\n"
       exit 1
     fi
@@ -245,7 +245,7 @@ set_comment_out()
 ##############################################################################
 {
   # if comment is set & not empty, create the comment output
-  if [ -n "$comment" ]; then
+  if [[ -n "$comment" ]]; then
     comment_out=".\"$comment\""
   fi
 }
@@ -256,7 +256,7 @@ set_db_username()
 ##############################################################################
 {
   # set DB username to "root" if not set with -u option
-  if [ -n "$username" ]; then
+  if [[ -n "$username" ]]; then
     db_username=$username
   else
     db_username="root"
@@ -269,9 +269,9 @@ set_db_password()
 ##############################################################################
 {
   # get & set DB password if not set with -p option
-  if [ -n "$password" ]; then
+  if [[ -n "$password" ]]; then
     db_password=$password
-  elif [ -n "${password+isSet}" ]; then
+  elif [[ -n "${password+isSet}" ]]; then
     db_password=
   else
     printf "\n"
@@ -287,7 +287,7 @@ set_db_password_out()
 {
   # if db_password is set & not empty, create the password output (use "-p")
   # include space in front, so it will be separated from the username output
-  if [ -n "$db_password" ]; then
+  if [[ -n "$db_password" ]]; then
     db_password_out=" -p'$db_password'"
     db_password_out_hidden=" -p'<password>'"
   else
@@ -312,7 +312,7 @@ on_exit()
 {
   exitCode=$?
 
-#  if [ $exitCode == $E_FAIL_ERROR ]; then
+#  if [[ $exitCode == $E_FAIL_ERROR ]]; then
 #    for i in "${on_fail_items[@]}"; do
 #      printf "cleanup:  $i\n"
 #      eval "$i"
@@ -329,7 +329,7 @@ add_on_fail()
 {
   local n=${#on_fail_items[*]}
   on_fail_items[$n]="$*"
-  if [ $n -eq 0 ]; then
+  if [[ $n -eq 0 ]]; then
     set -E -o pipefail
     trap on_exit EXIT
   fi
@@ -343,7 +343,7 @@ output_command()
   command=$1
   outfile=$2
 
-  if [ -n "$outfile" ]; then
+  if [[ -n "$outfile" ]]; then
     command="$command > '$outfile'"
   fi
 
@@ -361,7 +361,7 @@ _run_command()
 
   command_run=${command/'<password>'/$db_password_out}
 
-  if [ -n "$dry_run" ]; then
+  if [[ -n "$dry_run" ]]; then
     printf "${TXT_NOTICE}  -- DRY RUN -- No Command Run${TXT_NORMAL}\n"
   else
     eval "$command_run" &
@@ -390,19 +390,19 @@ run_command()
   outfile=$2
   error_handling=$3
 
-  if [ -n "$outfile" ]; then
+  if [[ -n "$outfile" ]]; then
     command="$command > '$outfile'"
   fi
 
   _run_command "$command"
   return_code=$?
 
-  if [ $error_handling != "silent" ]; then
-    if [ $return_code -eq 0 ]; then
+  if [[ $error_handling != "silent" ]]; then
+    if [[ $return_code -eq 0 ]]; then
       printf "${TXT_SUCCESS}###   [ PASS ]   ###${TXT_NORMAL}\n"
     else
       printf "${TXT_ERROR}###   [ FAIL ]   ###${TXT_NORMAL}\n"
-      if [ "$error_handling" == "fail" ]; then
+      if [[ "$error_handling" == "fail" ]]; then
         exit $E_FAIL_ERROR    # Trap Error & Exit
       fi
     fi
@@ -458,7 +458,7 @@ optionally_compress_file()
     file_extension="gz"
   fi
 
-  if [ $return_code -eq 0 ]; then    # rename the file
+  if [[ $return_code -eq 0 ]]; then    # rename the file
     filename="${filename}.${file_extension}"
     eval "$file_reference='$filename'"
   fi
@@ -471,11 +471,11 @@ output_source_file_command()
 {
   source_file="$1"
 
-  if [ ! -e "$source_file" ]; then
+  if [[ ! -e "$source_file" ]]; then
     exit $E_SOURCE_FILE_NOT_FOUND
-  elif [ ! -f "$source_file" ]; then
+  elif [[ ! -f "$source_file" ]]; then
     exit $E_INVALID_SOURCE_FILE
-  elif [ ! -r "$source_file" ]; then
+  elif [[ ! -r "$source_file" ]]; then
     exit $E_CANT_READ_SOURCE_FILE
   fi
 
@@ -547,7 +547,7 @@ check_for_destination_db()
   run_command "$command" "" "silent"
   return_code=$?
 
-  if [ $return_code -eq 0 ]; then
+  if [[ $return_code -eq 0 ]]; then
     printf "${TXT_NOTICE}## Destination database exists${TXT_NORMAL}\n"
     return 0
   else
@@ -564,7 +564,7 @@ backup_destination_db()
   check_for_destination_db
   return_code=$?
 
-  if [ $return_code -eq 0 ]; then
+  if [[ $return_code -eq 0 ]]; then
     printf "${TXT_NOTICE}## Backing up: \"$destination_db\"${TXT_NORMAL}\n"
 
     # set destination output filename
@@ -630,7 +630,7 @@ copy_source_to_destination_db()
       ;;
   esac
 
-  if [ $return_code -ne 0 ]; then
+  if [[ $return_code -ne 0 ]]; then
     output="${TXT_ERROR}$COMMAND: ${error}: \"${source_file}\"${TXT_NORMAL}\n"
     printf "$output"
     printf "${TXT_ERROR}###   [ FAIL ]   ###${TXT_NORMAL}\n"
