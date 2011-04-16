@@ -207,7 +207,7 @@ prod_db_overwrite_test()
 {
   source_comment=$1
 
-  if [[ $destination_db =~ '_prod' ]]; then
+  if [ $destination_db =~ '_prod' ]; then
     printf "\n${TXT_WARNING}*******************************************************************************\n"
     printf "*                            !!!!!  WARNING !!!!!                             *\n"
     printf "*                                                                             *\n"
@@ -312,7 +312,7 @@ on_exit()
 {
   exitCode=$?
 
-#  if [[ $exitCode == $E_FAIL_ERROR ]]; then
+#  if [ $exitCode == $E_FAIL_ERROR ]; then
 #    for i in "${on_fail_items[@]}"; do
 #      printf "cleanup:  $i\n"
 #      eval "$i"
