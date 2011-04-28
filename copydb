@@ -480,7 +480,7 @@ output_source_file_command()
     exit $E_CANT_READ_SOURCE_FILE
   fi
 
-  mime_type=$(file -ib "$source_file")
+  mime_type=$(file --brief --mime "$source_file")
 
   case $mime_type in
     *text/plain*)
