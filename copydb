@@ -85,13 +85,15 @@ usage: $COMMAND [OPTION]... SOURCE_DATABASE [DESTINATION_DATABASE]
 
 DESCRIPTION:
    $COMMAND
-      Backup of MySQL database from SOURCE_DATABASE and optionally copy to DESTINATION_DATABASE
+      Backup of MySQL or PostgreSQL database from SOURCE_DATABASE and
+      optionally copy to DESTINATION_DATABASE
 
    $COMMAND -s
       Copy SOURCE_FILE to DESTINATION_DATABASE
 
 OPTIONS:
    -h                show this Help message
+   -d[mp]            select [m]ySQL or [p]ostgreSQL database type (default: mySQL)
    -s <SOURCE_FILE>  copy from Source file to DESTINATION_DATABASE
    -c <COMMENT>      Comment to add to filename (default: <none>)
    -u <USERNAME>     database Username (default: root)
@@ -108,11 +110,23 @@ EOF
 get_options()
 ##############################################################################
 {
-  while getopts ":hs:c:u:p:bgn" opt; do
+  while getopts ":hd:s:c:u:p:bgn" opt; do
     case $opt in
       h)
         usage
         exit
+        ;;
+      d)
+        case "${OPTARG}" in
+          m|p)
+            db_type="${OPTARG}"
+            ;;
+          *)
+            printf "${TXT_ERROR}$COMMAND: Invalid option: -d$OPTARG${TXT_NORMAL}\n"
+            help_prompt
+            exit $E_OPTION_ERROR
+            ;;
+        esac
         ;;
       s)
         source_file="$OPTARG"
@@ -233,6 +247,7 @@ set_common_variables()
 ##############################################################################
 {
   set_comment_out
+  set_db_type
   set_db_username
   set_db_password
   set_db_password_out
@@ -247,6 +262,19 @@ set_comment_out()
   # if comment is set & not empty, create the comment output
   if [[ -n "$comment" ]]; then
     comment_out=".\"$comment\""
+  fi
+}
+
+
+##############################################################################
+set_db_type()
+##############################################################################
+{
+  # set DB type to "m" (mysql) if not set with -d option
+  if [[ -n "$db_type" ]]; then
+    db_type=$db_type
+  else
+    db_type="m"
   fi
 }
 
@@ -512,7 +540,14 @@ backup_source_db()
   # set source output filename
   source_db_output=$(output_filename 'source' "$source_db")
 
-  command="mysqldump -u '$db_username'<password> '$source_db'"
+  case "${db_type}" in
+    m)
+      command="mysqldump -u '$db_username'<password> '$source_db'"
+      ;;
+    p)
+      command="pg_dump -U '$db_username'<password> '$source_db'"
+      ;;
+  esac
 
   output_command "$command" "$source_db_output"
   run_command "$command" "$source_db_output" "fail"
