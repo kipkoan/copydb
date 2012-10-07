@@ -477,7 +477,7 @@ optionally_compress_file()
   local command
 
   if [[ $use_bzip2 == true ]]; then
-    printf "\n${TXT_NOTICE}## Compressing file with bzip2: \"$filename\"${TXT_NORMAL}\n"
+    printf "${TXT_NOTICE}## Compressing file with bzip2: \"$filename\"${TXT_NORMAL}\n"
 
     command="bzip2 '$filename'"
 
@@ -489,7 +489,7 @@ optionally_compress_file()
     file_extension="bz2"
 
   elif [[ $use_gzip == true ]]; then
-    printf "\n${TXT_NOTICE}## Compressing file with gzip: \"$filename\"${TXT_NORMAL}\n"
+    printf "${TXT_NOTICE}## Compressing file with gzip: \"$filename\"${TXT_NORMAL}\n"
 
     command="gzip '$filename'"
 
