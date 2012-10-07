@@ -316,13 +316,26 @@ set_db_password_out()
 {
   # if db_password is set, create the password output (use "-p")
   # include space in front, so it will be separated from the username output
-  if [[ -n "${db_password+isSet}" ]]; then
-    db_password_out=" -p'$db_password'"
-    db_password_out_hidden=" -p'<password>'"
-  else
-    db_password_out=
-    db_password_out_hidden=
-  fi
+  case "${db_type}" in
+    m)
+      if [[ -n "${db_password+isSet}" ]]; then
+        db_password_out=" -p'$db_password'"
+        db_password_out_hidden=" -p'<password>'"
+      else
+        db_password_out=
+        db_password_out_hidden=
+      fi
+      ;;
+    p)
+      if [[ -n "${db_password+isSet}" ]]; then
+        db_password_out=" password=${db_password}"
+        db_password_out_hidden=" password=<password>"
+      else
+        db_password_out=
+        db_password_out_hidden=
+      fi
+      ;;
+  esac
 }
 
 
@@ -546,7 +559,7 @@ backup_source_db()
       command="mysqldump -u '$db_username'<password> '$source_db'"
       ;;
     p)
-      command="pg_dump -U '$db_username' '$source_db'"
+      command="pg_dump -w 'dbname=$source_db user=${db_username}<password>'"
       ;;
   esac
 
@@ -566,7 +579,14 @@ check_db_connection()
   printf "\n\n${TXT_NOTICE}## Checking database connection...${TXT_NORMAL}\n"
 
   # check if destination database exists
-  command="mysql --batch --skip-column-names -u '$db_username'$db_password_out -e 'connect'"
+  case "${db_type}" in
+    m)
+      command="mysql --batch --skip-column-names -u '${db_username}'${db_password_out} -e 'connect'"
+      ;;
+    p)
+      command="psql -q -n -t -w -c '\connect' 'dbname=${source_db} user=${db_username}<password>'"
+      ;;
+  esac
 
   run_command "$command" "" "fail"
 }
