@@ -599,8 +599,16 @@ check_for_destination_db()
   printf "\n\n${TXT_NOTICE}## Checking if destination database exists: \"$destination_db\"${TXT_NORMAL}\n"
 
   # check if destination database exists
-  command="mysql --batch --skip-column-names -u '$db_username'$db_password_out -e 'SHOW DATABASES LIKE \"$destination_db\"' | grep -q '$destination_db'"
+  case "${db_type}" in
+    m)
+      command="mysql --batch --skip-column-names -u '$db_username'$db_password_out -e 'SHOW DATABASES LIKE \"$destination_db\"' | grep -q '$destination_db'"
+      ;;
+    p)
+      command="psql -q -n -t -w -c 'select datname from pg_database where datname='\"'\"'${destination_db}'\"'\"'' 'dbname=template1 user=${db_username}<password>' | grep -q '$destination_db'"
+      ;;
+  esac
 
+  output_command "$command"
   run_command "$command" "" "silent"
   return_code=$?
 
@@ -627,7 +635,14 @@ backup_destination_db()
     # set destination output filename
     destination_db_output=$(output_filename 'destination' "$destination_db")
 
-    command="mysqldump -u '$db_username'<password> '$destination_db'"
+    case "${db_type}" in
+      m)
+        command="mysqldump -u '$db_username'<password> '$destination_db'"
+        ;;
+      p)
+        command="pg_dump -w 'dbname=$destination_db user=${db_username}<password>'"
+        ;;
+    esac
 
     output_command "$command" "$destination_db_output"
     run_command "$command" "$destination_db_output" "fail"
@@ -646,7 +661,18 @@ create_destination_db()
 {
   printf "\n\n${TXT_NOTICE}## Creating empty destination database: \"$destination_db\"${TXT_NORMAL}\n"
 
-  command="mysql -u '$db_username'<password> -e 'DROP DATABASE IF EXISTS \`$destination_db\`; CREATE DATABASE \`$destination_db\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;'"
+  case "${db_type}" in
+    m)
+      command="mysql -u '$db_username'<password> -e 'DROP DATABASE IF EXISTS \`$destination_db\`; CREATE DATABASE \`$destination_db\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;'"
+      ;;
+    p)
+      command="psql -q -n -t -w -c 'DROP DATABASE IF EXISTS $destination_db;' 'dbname=template1 user=${db_username}<password>'"
+      output_command "$command"
+      run_command "$command" "" "silent"
+
+      command="psql -q -n -t -w -c 'CREATE DATABASE $destination_db WITH ENCODING = '\"'\"'UTF8'\"'\"' LC_COLLATE = '\"'\"'en_US.UTF-8'\"'\"' LC_CTYPE = '\"'\"'en_US.UTF-8'\"'\"';' 'dbname=template1 user=${db_username}<password>'"
+      ;;
+  esac
 
   output_command "$command"
   run_command "$command" "" "fail"
