@@ -97,8 +97,8 @@ OPTIONS:
    -s <SOURCE_FILE>  copy from Source file to DESTINATION_DATABASE
    -c <COMMENT>      Comment to add to filename (default: <none>)
    -u <USERNAME>     database Username (default: <current user>)
-   -p <PASSWORD>     database Password (default: <prompt>)
-   -p ''             database Password is not set (or null)
+   -p <PASSWORD>     database Password (default: <none>)
+   -w                prompt for database Password
    -b                use Bzip2 to compress output
    -g                use Gzip to compress output
    -n                dry run - do Not actually do anything, just show what would be done
@@ -110,7 +110,7 @@ EOF
 get_options()
 ##############################################################################
 {
-  while getopts ":hd:s:c:u:p:bgn" opt; do
+  while getopts ":hd:s:c:u:p:wbgn" opt; do
     case $opt in
       h)
         usage
@@ -139,6 +139,9 @@ get_options()
         ;;
       p)
         password="$OPTARG"
+        ;;
+      w)
+        password_prompt=true
         ;;
       b)
         use_bzip2=true
@@ -250,7 +253,6 @@ set_common_variables()
   set_db_type
   set_db_username
   set_db_password
-  set_db_password_out
   set_date
 }
 
@@ -297,15 +299,14 @@ set_db_password()
 ##############################################################################
 {
   # get & set DB password if not set with -p option
-  if [[ -n "$password" ]]; then
-    db_password=$password
-  elif [[ -n "${password+isSet}" ]]; then
-    db_password=
-  else
+  if [[ $password_prompt == true ]]; then
     printf "\n"
     read -s -p "${TXT_PROMPT}DB Password for user '$db_username': ${TXT_NORMAL}" db_password
     printf "\n"
+  elif [[ -n "${password+isSet}" ]]; then
+    db_password=$password
   fi
+  set_db_password_out
 }
 
 
@@ -313,9 +314,9 @@ set_db_password()
 set_db_password_out()
 ##############################################################################
 {
-  # if db_password is set & not empty, create the password output (use "-p")
+  # if db_password is set, create the password output (use "-p")
   # include space in front, so it will be separated from the username output
-  if [[ -n "$db_password" ]]; then
+  if [[ -n "${db_password+isSet}" ]]; then
     db_password_out=" -p'$db_password'"
     db_password_out_hidden=" -p'<password>'"
   else
@@ -545,7 +546,7 @@ backup_source_db()
       command="mysqldump -u '$db_username'<password> '$source_db'"
       ;;
     p)
-      command="pg_dump -U '$db_username'<password> '$source_db'"
+      command="pg_dump -U '$db_username' '$source_db'"
       ;;
   esac
 
