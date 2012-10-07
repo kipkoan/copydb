@@ -96,7 +96,7 @@ OPTIONS:
    -d[mp]            select [m]ySQL or [p]ostgreSQL database type (default: mySQL)
    -s <SOURCE_FILE>  copy from Source file to DESTINATION_DATABASE
    -c <COMMENT>      Comment to add to filename (default: <none>)
-   -u <USERNAME>     database Username (default: root)
+   -u <USERNAME>     database Username (default: <current user>)
    -p <PASSWORD>     database Password (default: <prompt>)
    -p ''             database Password is not set (or null)
    -b                use Bzip2 to compress output
@@ -283,11 +283,11 @@ set_db_type()
 set_db_username()
 ##############################################################################
 {
-  # set DB username to "root" if not set with -u option
+  # set DB username to <current user> if not set with -u option
   if [[ -n "$username" ]]; then
     db_username=$username
   else
-    db_username="root"
+    db_username=${USER}
   fi
 }
 
