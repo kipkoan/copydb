@@ -581,7 +581,7 @@ check_db_connection()
   # check if destination database exists
   case "${db_type}" in
     m)
-      command="mysql --batch --skip-column-names -u '${db_username}'${db_password_out} -e 'connect'"
+      command="mysql --batch --skip-column-names -u '${db_username}'<password> -e 'connect'"
       ;;
     p)
       command="psql -q -n -t -w -c '\connect' 'dbname=template1 user=${db_username}<password>'"
@@ -601,7 +601,7 @@ check_for_destination_db()
   # check if destination database exists
   case "${db_type}" in
     m)
-      command="mysql --batch --skip-column-names -u '$db_username'$db_password_out -e 'SHOW DATABASES LIKE \"$destination_db\"' | grep -q '$destination_db'"
+      command="mysql --batch --skip-column-names -u '$db_username'<password> -e 'SHOW DATABASES LIKE \"$destination_db\"' | grep -q '$destination_db'"
       ;;
     p)
       command="psql -q -n -t -w -c 'select datname from pg_database where datname='\"'\"'${destination_db}'\"'\"'' 'dbname=template1 user=${db_username}<password>' | grep -q '$destination_db'"
