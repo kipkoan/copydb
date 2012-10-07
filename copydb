@@ -51,7 +51,7 @@ main()
 
   prod_db_overwrite_test "a $source_type ('$source_location')"
 
-  if $backup_source; then
+  if [[ $backup_source == true ]]; then
     backup_source_db    # sets $source_db_output
     source_file="$source_db_output"
   fi
@@ -388,7 +388,7 @@ _run_command()
 
   command_run=${command/'<password>'/$db_password_out}
 
-  if [[ -n "$dry_run" ]]; then
+  if [[ $dry_run == true ]]; then
     printf "${TXT_NOTICE}  -- DRY RUN -- No Command Run${TXT_NORMAL}\n"
   else
     eval "$command_run" &
@@ -462,7 +462,7 @@ optionally_compress_file()
   local return_code
   local command
 
-  if [[ -n $use_bzip2 ]] && [[ $use_bzip2 == true ]]; then
+  if [[ $use_bzip2 == true ]]; then
     printf "\n${TXT_NOTICE}## Compressing file with bzip2: \"$filename\"${TXT_NORMAL}\n"
 
     command="bzip2 '$filename'"
@@ -474,7 +474,7 @@ optionally_compress_file()
 
     file_extension="bz2"
 
-  elif [[ -n $use_gzip ]] && [[ $use_gzip == true ]]; then
+  elif [[ $use_gzip == true ]]; then
     printf "\n${TXT_NOTICE}## Compressing file with gzip: \"$filename\"${TXT_NORMAL}\n"
 
     command="gzip '$filename'"
