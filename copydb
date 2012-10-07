@@ -584,7 +584,7 @@ check_db_connection()
       command="mysql --batch --skip-column-names -u '${db_username}'${db_password_out} -e 'connect'"
       ;;
     p)
-      command="psql -q -n -t -w -c '\connect' 'dbname=${source_db} user=${db_username}<password>'"
+      command="psql -q -n -t -w -c '\connect' 'dbname=template1 user=${db_username}<password>'"
       ;;
   esac
 
