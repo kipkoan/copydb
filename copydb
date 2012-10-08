@@ -525,7 +525,7 @@ output_source_file_command()
   mime_type=$(file --brief --mime "$source_file")
 
   case $mime_type in
-    *text/plain*)
+    *text/plain*|*text/x-c*)
       input_process="cat"
       ;;
     *bzip*)
@@ -715,7 +715,7 @@ copy_source_to_destination_db()
           command="$output_source_file_command | mysql -u '$db_username'<password> '$destination_db'"
           ;;
         p)
-          command="$output_source_file_command | mysql -u '$db_username'<password> '$destination_db'"
+          command="$output_source_file_command | psql -q -n -t -w 'dbname=${destination_db} user=${db_username}<password>' > /dev/null"
           ;;
       esac
       output_command "$command"
