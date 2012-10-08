@@ -688,7 +688,7 @@ create_destination_db()
       command="mysql -u '$db_username'<password> -e 'CREATE DATABASE \`$destination_db\` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;'"
       ;;
     p)
-      command="psql -q -n -t -w -c 'CREATE DATABASE $destination_db WITH ENCODING = '\"'\"'UTF8'\"'\"' LC_COLLATE = '\"'\"'en_US.UTF-8'\"'\"' LC_CTYPE = '\"'\"'en_US.UTF-8'\"'\"';' 'dbname=template1 user=${db_username}<password>'"
+      command="psql -q -n -t -w -c 'CREATE DATABASE $destination_db WITH ENCODING = '\"'\"'UTF8'\"'\"' LC_COLLATE = '\"'\"'en_US.utf-8'\"'\"' LC_CTYPE = '\"'\"'en_US.utf-8'\"'\"';' 'dbname=template1 user=${db_username}<password>'"
       ;;
   esac
 
